@@ -102,20 +102,30 @@ const Phase1Modal = ({ open, onOpenChange, onPhaseCompleted, isFirstTimeClick = 
 
     try {
       const now = new Date();
-      const newXP = (profile?.total_xp || 0) + phaseXP;
-      
-      const { error } = await supabase
-        .from("profiles")
-        .update({ 
-          total_xp: newXP,
-          last_checkin_at: now.toISOString()
-        })
-        .eq("user_id", currentUserId);
-
-      if (error) {
-        console.error("Erro ao fazer check-in:", error);
-        return;
+      const amount = phaseXP || 10;
+      // Tentar conceder XP via RPC (atômico)
+      const { error: awardErr } = await supabase.rpc('award_xp', { target_user: currentUserId, amount });
+      if (awardErr) {
+        console.warn('award_xp falhou; aplicando fallback no check-in:', awardErr);
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('total_xp')
+          .eq('user_id', currentUserId)
+          .single();
+        if (prof) {
+          const newXP = (prof.total_xp || 0) + amount;
+          await supabase
+            .from('profiles')
+            .update({ total_xp: newXP })
+            .eq('user_id', currentUserId);
+        }
       }
+
+      // Atualizar last_checkin_at independentemente do XP
+      await supabase
+        .from("profiles")
+        .update({ last_checkin_at: now.toISOString() })
+        .eq("user_id", currentUserId);
 
       setCanCheckIn(false);
       setShowCheckinModal(false);
@@ -234,17 +244,20 @@ const Phase1Modal = ({ open, onOpenChange, onPhaseCompleted, isFirstTimeClick = 
 
     // Atualizar XP do usuário se houver XP a ser concedido
     if (xpToAward > 0) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("total_xp")
-        .eq("user_id", currentUserId)
-        .single();
-
-      if (profile) {
-        await supabase
+      const { error: rpcError } = await supabase.rpc('award_xp', { target_user: currentUserId, amount: xpToAward });
+      if (rpcError) {
+        console.warn('award_xp falhou; aplicando fallback:', rpcError);
+        const { data: profile } = await supabase
           .from("profiles")
-          .update({ total_xp: (profile.total_xp || 0) + xpToAward })
-          .eq("user_id", currentUserId);
+          .select("total_xp")
+          .eq("user_id", currentUserId)
+          .single();
+        if (profile) {
+          await supabase
+            .from("profiles")
+            .update({ total_xp: (profile.total_xp || 0) + xpToAward })
+            .eq("user_id", currentUserId);
+        }
       }
     }
 

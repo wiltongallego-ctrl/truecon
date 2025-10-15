@@ -119,17 +119,20 @@ const Phase2Modal = ({ open, onOpenChange, onPhaseCompleted }: Phase2ModalProps)
 
     // Atualizar XP do usuário se houver XP a ser concedido
     if (xpToAward > 0) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("total_xp")
-        .eq("user_id", userId)
-        .single();
-
-      if (profile) {
-        await supabase
+      const { error: rpcError } = await supabase.rpc('award_xp', { target_user: userId, amount: xpToAward });
+      if (rpcError) {
+        console.warn('award_xp falhou; aplicando fallback:', rpcError);
+        const { data: profile } = await supabase
           .from("profiles")
-          .update({ total_xp: (profile.total_xp || 0) + xpToAward })
-          .eq("user_id", userId);
+          .select("total_xp")
+          .eq("user_id", userId)
+          .single();
+        if (profile) {
+          await supabase
+            .from("profiles")
+            .update({ total_xp: (profile.total_xp || 0) + xpToAward })
+            .eq("user_id", userId);
+        }
       }
     }
 

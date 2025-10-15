@@ -92,6 +92,9 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
   const [nextCheckinTime, setNextCheckinTime] = useState<Date | null>(null);
   const [timeUntilNextCheckin, setTimeUntilNextCheckin] = useState('');
   const [currentCycleStartDate, setCurrentCycleStartDate] = useState<Date | null>(null);
+  
+  // XP configurado para a Fase 1 (fallback para 10)
+  const [phaseXP, setPhaseXP] = useState<number>(10);
 
   // Função para calcular próximo horário de check-in (8h da manhã)
   const calculateNextCheckinTime = (): Date => {
@@ -197,6 +200,21 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
     try {
       setIsLoading(true);
       setError(null);
+
+      // Buscar XP configurado para a Fase 1 (usa 10 como fallback quando xp_reward for 0)
+      try {
+        const { data: phase1Data } = await supabase
+          .from('phases')
+          .select('xp_reward')
+          .eq('phase_number', 1)
+          .maybeSingle();
+        if (phase1Data) {
+          setPhaseXP(phase1Data.xp_reward || 10);
+        }
+      } catch (xpErr) {
+        console.warn('Falha ao carregar xp da Fase 1, usando fallback 10:', xpErr);
+        setPhaseXP(10);
+      }
 
       // Buscar ou inicializar o registro agregado do usuário
       const { data: existingRow, error: rowError } = await supabase
@@ -369,6 +387,35 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
       if (profileError) {
         // Não bloqueia o fluxo de check-in; apenas registra
         console.warn('Falha ao atualizar last_checkin_at no perfil:', profileError);
+      }
+
+      // Conceder XP do check-in diário (RPC atômica com fallback)
+      try {
+        const amount = phaseXP ?? 10;
+        const { error: rpcError } = await supabase.rpc('award_xp', { target_user: user.id, amount });
+        if (rpcError) {
+          console.warn('award_xp falhou, aplicando fallback:', rpcError);
+          const { data: profileData, error: fetchErr } = await supabase
+            .from('profiles')
+            .select('total_xp')
+            .eq('user_id', user.id)
+            .single();
+          if (!fetchErr && profileData) {
+            const currentXP = profileData.total_xp || 0;
+            const newXP = currentXP + amount;
+            const { error: updateErr } = await supabase
+              .from('profiles')
+              .update({ total_xp: newXP })
+              .eq('user_id', user.id);
+            if (updateErr) {
+              console.warn('Fallback: falha ao atualizar total_xp:', updateErr);
+            }
+          } else {
+            console.warn('Fallback: falha ao buscar perfil para XP:', fetchErr);
+          }
+        }
+      } catch (xpAwardErr) {
+        console.warn('Erro ao conceder XP (RPC):', xpAwardErr);
       }
 
       // Recarregar dados
