@@ -133,6 +133,13 @@ const Admin = () => {
   };
 
   const toggleActive = async (id: string, currentStatus: boolean) => {
+    // Buscar dados da fase antes de atualizar
+    const { data: phaseData } = await supabase
+      .from("phases")
+      .select("phase_number, title")
+      .eq("id", id)
+      .single();
+
     const { error } = await supabase
       .from("phases")
       .update({ is_active: !currentStatus })
@@ -143,7 +150,21 @@ const Admin = () => {
       return;
     }
 
+    const isActivating = !currentStatus;
     toast.success(currentStatus ? "Fase desativada" : "Fase ativada");
+    
+    // Se está ativando uma fase, enviar notificação push
+    if (isActivating && phaseData) {
+      try {
+        // Importar dinamicamente o serviço de notificação
+        const { notificationService } = await import("@/services/notificationService");
+        await notificationService.notifyPhaseReleased(phaseData.phase_number, phaseData.title);
+      } catch (error) {
+        console.error("Erro ao enviar notificação de fase liberada:", error);
+        // Não mostrar erro para o usuário, pois a fase foi ativada com sucesso
+      }
+    }
+    
     fetchPhases();
   };
 

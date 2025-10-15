@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import DesktopLanding from "@/components/DesktopLanding";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { notificationService } from "@/services/notificationService";
 import Auth from "./pages/Auth";
 import Home from "./pages/Home";
 import Ranking from "./pages/Ranking";
@@ -20,12 +21,32 @@ const App = () => {
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    // Registrar service worker
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
-        .then(() => console.log('Service Worker registrado'))
-        .catch((error) => console.error('Erro ao registrar Service Worker:', error));
-    }
+    // Inicializar serviço de notificações
+    const initializeNotifications = async () => {
+      try {
+        const initialized = await notificationService.initialize();
+        if (initialized) {
+          console.log('[App] Serviço de notificações inicializado');
+          
+          // Configurar listeners
+          notificationService.setupVisibilityListener();
+          notificationService.setupPWAInstallPrompt();
+          
+          // Solicitar permissão se ainda não foi concedida
+          if (notificationService.isPWA() && !notificationService.isNotificationEnabled()) {
+            // Aguardar um pouco antes de solicitar permissão para melhor UX
+            setTimeout(async () => {
+              const permission = await notificationService.requestPermission();
+              console.log('[App] Permissão de notificação:', permission);
+            }, 3000);
+          }
+        }
+      } catch (error) {
+        console.error('[App] Erro ao inicializar notificações:', error);
+      }
+    };
+
+    initializeNotifications();
   }, []);
 
   // Se não for mobile, mostrar a tela de desktop
