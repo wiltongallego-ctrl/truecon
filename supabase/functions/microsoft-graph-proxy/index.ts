@@ -53,9 +53,9 @@ serve(async (req) => {
 })
 
 async function getAccessToken() {
-  const TENANT_ID = '24f0ac3b-8192-4968-ae6f-47a2a4e8ce09'
-  const CLIENT_ID = '3198d965-afc4-4771-9d15-65ae0aa6433c'
-  const CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET") || "" 
+  const TENANT_ID = Deno.env.get("AZURE_TENANT_ID") || '24f0ac3b-8192-4968-ae6f-47a2a4e8ce09'
+  const CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID") || '3198d965-afc4-4771-9d15-65ae0aa6433c'
+  const CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET") || ""
   
   const tokenUrl = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`
   
