@@ -53,10 +53,16 @@ const Auth = () => {
 
   const handleAzureSignIn = async () => {
     try {
+      // Define redirect base considerando produção e desenvolvimento
+      const origin = window.location.origin;
+      const siteUrlEnv = import.meta.env.VITE_SITE_URL as string | undefined;
+      const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(:\\d{1,5})?$/.test(origin);
+      const redirectBase = isLocal ? origin : (siteUrlEnv || origin);
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'azure',
         options: {
-          redirectTo: `${window.location.origin}/`
+          redirectTo: `${redirectBase}/`
         }
       });
 

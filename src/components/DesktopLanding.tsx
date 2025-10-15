@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
 import TrueLogo from './TrueLogo';
+import logoTruechange from '../../img/logo_truechange.webp';
+import androidImg from '../../img/android.png';
+import iosImg from '../../img/ios.png';
 
 interface CountdownProps {
   targetDate: Date;
@@ -144,7 +147,7 @@ const DesktopLanding: React.FC = () => {
           <header className="text-center mb-6">
             <div className="flex items-center justify-center gap-5 mb-4">
               <img 
-                src="/img/logo_truechange.webp" 
+                src={logoTruechange} 
                 alt="TrueChange Logo" 
                 className="h-16 w-auto object-contain"
               />
@@ -198,12 +201,12 @@ const DesktopLanding: React.FC = () => {
               <QRCodeComponent 
                 platform="Android" 
                 url="https://play.google.com/store/apps/details?id=com.truechange.truecon"
-                logoSrc="/img/android.png"
+                logoSrc={androidImg}
               />
               <QRCodeComponent 
                 platform="iOS" 
                 url="https://apps.apple.com/app/truecon/id123456789"
-                logoSrc="/img/ios.png"
+                logoSrc={iosImg}
               />
             </div>
           </section>

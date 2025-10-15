@@ -1,4 +1,5 @@
 import React from 'react';
+import logoFlu from '../../img/logo_flu.png';
 
 const AnimatedCharacter: React.FC = () => {
   return (
@@ -19,7 +20,7 @@ const AnimatedCharacter: React.FC = () => {
       {/* Imagem PNG com animação de flutuação */}
        <div className="float-main flex items-center justify-center">
          <img 
-           src="/img/logo_flu.png" 
+           src={logoFlu} 
            alt="Logo TrueCon" 
            className="max-w-[300px] max-h-[250px] w-auto h-auto object-contain"
          />
