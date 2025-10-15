@@ -43,6 +43,11 @@ const App = () => {
             setTimeout(async () => {
               const permission = await notificationService.requestPermission();
               console.log('[App] Permissão de notificação:', permission);
+              
+              // Se for iOS e a permissão foi negada, mostrar dica
+              if (notificationService.isIOS() && permission !== 'granted') {
+                console.log('[App] Dica: No iOS, certifique-se de que o app está instalado como PWA e as notificações estão habilitadas nas configurações do dispositivo');
+              }
             }, 3000);
           }
         }

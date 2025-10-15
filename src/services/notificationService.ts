@@ -41,8 +41,20 @@ export class NotificationService {
   // Solicitar permissão para notificações
   public async requestPermission(): Promise<NotificationPermission> {
     try {
+      // No iOS/Safari, verificar se está em modo PWA antes de solicitar
+      if (this.isIOS() && !this.isPWA()) {
+        console.warn('[NotificationService] Notificações não são suportadas no Safari fora do modo PWA');
+        return 'denied';
+      }
+
       const permission = await Notification.requestPermission();
       console.log('[NotificationService] Permissão de notificação:', permission);
+      
+      // No iOS, aguardar um pouco após a permissão para garantir que foi processada
+      if (this.isIOS() && permission === 'granted') {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
       return permission;
     } catch (error) {
       console.error('[NotificationService] Erro ao solicitar permissão:', error);
@@ -65,6 +77,20 @@ export class NotificationService {
     if (!this.registration) {
       console.warn('[NotificationService] Service Worker não está registrado');
       return;
+    }
+
+    // Verificações específicas para iOS
+    if (this.isIOS()) {
+      if (!this.isPWA()) {
+        console.warn('[NotificationService] Notificações no iOS só funcionam em modo PWA');
+        return;
+      }
+      
+      // Verificar se o app está em primeiro plano
+      if (document.visibilityState === 'visible') {
+        console.log('[NotificationService] App em primeiro plano no iOS, não enviando notificação');
+        return;
+      }
     }
 
     const defaultOptions: NotificationOptions = {
@@ -121,7 +147,29 @@ export class NotificationService {
       ]
     };
 
-    await this.sendLocalNotification(title, options);
+    // Para iOS, usar método alternativo se o app estiver em primeiro plano
+    if (this.isIOS() && document.visibilityState === 'visible') {
+      // Agendar notificação para quando o app sair de primeiro plano
+      setTimeout(() => {
+        if (document.visibilityState !== 'visible') {
+          this.sendLocalNotification(title, options);
+        }
+      }, 2000);
+      
+      // Também tentar via Service Worker message
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SHOW_NOTIFICATION',
+          title,
+          body: options.body,
+          icon: options.icon,
+          badge: options.badge,
+          data: options.data
+        });
+      }
+    } else {
+      await this.sendLocalNotification(title, options);
+    }
   }
 
   // Configurar listener para mudanças de visibilidade da página
@@ -149,9 +197,28 @@ export class NotificationService {
 
   // Verificar se o app está em modo PWA
   public isPWA(): boolean {
-    return window.matchMedia('(display-mode: standalone)').matches ||
-           (window.navigator as any).standalone ||
-           document.referrer.includes('android-app://');
+    // Verificação específica para iOS
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+                        (window.navigator as any).standalone ||
+                        document.referrer.includes('android-app://');
+    
+    // No iOS, também verificar se está em modo standalone
+    if (isIOS) {
+      return isStandalone || (window.navigator as any).standalone === true;
+    }
+    
+    return isStandalone;
+  }
+
+  // Verificar se é iOS
+  public isIOS(): boolean {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent);
+  }
+
+  // Verificar se é Safari
+  public isSafari(): boolean {
+    return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
   }
 
   // Configurar prompt de instalação PWA

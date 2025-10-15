@@ -122,4 +122,29 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'GET_VERSION') {
     event.ports[0].postMessage({ version: CACHE_NAME });
   }
+
+  // Listener para mostrar notificações (especialmente útil para iOS)
+  if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
+    const { title, body, icon, badge, data } = event.data;
+    
+    const options = {
+      body: body || 'Nova notificação disponível!',
+      icon: icon || '/favicon.ico',
+      badge: badge || '/favicon.ico',
+      vibrate: [200, 100, 200],
+      data: data || { timestamp: Date.now() },
+      actions: [
+        {
+          action: 'open',
+          title: 'Abrir'
+        },
+        {
+          action: 'close',
+          title: 'Fechar'
+        }
+      ]
+    };
+
+    self.registration.showNotification(title || 'TrueCon', options);
+  }
 });
