@@ -15,6 +15,7 @@ import Phase1CompletionModal from "@/components/modals/Phase1CompletionModal";
 import { getNavigationDirection, applyPageTransition } from "@/lib/pageTransitions";
 import { getDisplayName } from "@/utils/nameUtils";
 import { usePhase1Checkin } from "@/hooks/usePhase1Checkin";
+import Avatar from "@/components/Avatar";
 import faseNotFoundImg from "../../img/fase_notfound.png";
 
 interface Phase {
@@ -371,45 +372,13 @@ const Home = () => {
               {/* Linha superior com foto de perfil e informações */}
               <div className="flex items-center gap-4">
                 {/* Foto de perfil */}
-                <div className="relative group cursor-pointer transform hover:scale-105 transition-all duration-300">
-                  {user?.user_metadata?.picture || user?.user_metadata?.avatar_url ? (
-                    <img 
-                      src={user.user_metadata.picture || user.user_metadata.avatar_url} 
-                      alt="Foto de perfil"
-                      className="w-20 h-20 rounded-full object-cover shadow-xl border-4 border-white ring-2 ring-primary/20"
-                      onError={(e) => {
-                        // Fallback para inicial se a imagem não carregar
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                        const fallback = target.nextElementSibling as HTMLElement;
-                        if (fallback) fallback.style.display = 'flex';
-                      }}
-                    />
-                  ) : null}
-                  <div 
-                    className={`w-20 h-20 rounded-full bg-gradient-to-br from-primary via-primary/90 to-primary/80 flex items-center justify-center text-white text-2xl font-bold shadow-xl border-4 border-white ring-2 ring-primary/20 ${user?.user_metadata?.picture || user?.user_metadata?.avatar_url ? 'hidden' : 'flex'}`}
-                  >
-                    {getDisplayName(profile, user)?.[0]?.toUpperCase()}
-                  </div>
-                  <input
-                    type="file"
-                    id="profile-photo-upload"
-                    accept="image/*"
-                    onChange={handlePhotoUpload}
-                    className="hidden"
-                    disabled={uploadingPhoto}
-                  />
-                  <label htmlFor="profile-photo-upload">
-                    <button 
-                      className={`absolute -bottom-1 -right-1 w-8 h-8 bg-white border-2 border-primary/20 rounded-full flex items-center justify-center shadow-lg hover:bg-primary hover:text-white transition-all duration-200 hover:scale-110 ${uploadingPhoto ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      disabled={uploadingPhoto}
-                      type="button"
-                    >
-                      <Pencil className="w-4 h-4 text-gray-600 hover:text-white" />
-                    </button>
-                  </label>
-                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                </div>
+                <Avatar 
+                  size={80}
+                  fallbackText={getDisplayName(profile, user)?.[0]?.toUpperCase() || 'U'}
+                  showEditButton={true}
+                  onPhotoUpload={handlePhotoUpload}
+                  uploadingPhoto={uploadingPhoto}
+                />
                 
                 {/* Informações do usuário - expandido para ocupar mais espaço */}
                 <div className="flex-1 flex flex-col gap-1">

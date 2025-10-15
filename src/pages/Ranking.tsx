@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import BottomNavigation from "../components/ui/BottomNavigation";
 import { usePhase1Checkin } from "@/hooks/usePhase1Checkin";
 import { Avatar } from "@/components/ui/avatar";
+import UserAvatar from "@/components/UserAvatar";
 import { getNavigationDirection, applyPageTransition } from "@/lib/pageTransitions";
 
 interface RankingUser {
@@ -254,9 +255,10 @@ const Ranking = () => {
                     </div>
                     
                     {/* Avatar */}
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
-                      {getUserInitial(user)}
-                    </div>
+                    <UserAvatar 
+                      user={user}
+                      size={48}
+                    />
                     
                     {/* Informações do usuário */}
                     <div className="flex-1 min-w-0">
