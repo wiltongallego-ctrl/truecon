@@ -16,7 +16,6 @@ import { getNavigationDirection, applyPageTransition } from "@/lib/pageTransitio
 import { getDisplayName } from "@/utils/nameUtils";
 import { usePhase1Checkin } from "@/hooks/usePhase1Checkin";
 import Avatar from "@/components/Avatar";
-import DebugUserData from "@/components/DebugUserData";
 import faseNotFoundImg from "../../img/fase_notfound.png";
 
 interface Phase {
@@ -768,8 +767,6 @@ const Home = () => {
 
       {/* (Removido) CheckinModal direto (fluxo antigo) */}
       
-      {/* Componente de Debug */}
-      <DebugUserData />
     </div>
   );
 };

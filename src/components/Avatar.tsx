@@ -34,13 +34,12 @@ export default function Avatar({
       });
 
       // Prioridade para carregar a foto:
-      // 1. avatar_url do user_metadata (EntraID)
-      // 2. picture do user_metadata (EntraID)
-      // 3. picture do identity_data (EntraID)
-      // 4. avatar_url do profile (upload manual)
-      const avatarUrl = user?.user_metadata?.avatar_url;
-      const pictureUrl = user?.user_metadata?.picture;
-      const identityPicture = user?.identities?.[0]?.identity_data?.picture;
+      // 1. avatar_url do user_metadata (salvo pelo Microsoft Graph)
+      // 2. picture do user_metadata (salvo pelo Microsoft Graph)
+      // 3. picture do identity_data (dados diretos do Azure)
+      let avatarUrl = user?.user_metadata?.avatar_url;
+      let pictureUrl = user?.user_metadata?.picture;
+      let identityPicture = user?.identities?.[0]?.identity_data?.picture;
 
       console.log("🖼️ [Avatar Debug] URLs encontradas:", {
         avatar_url: avatarUrl,
@@ -48,6 +47,7 @@ export default function Avatar({
         identity_picture: identityPicture
       });
 
+      // Usar apenas URLs reais do Microsoft - SEM PALIATIVOS
       const url = avatarUrl || pictureUrl || identityPicture;
 
       console.log("✅ [Avatar Debug] URL final selecionada:", url);
