@@ -22,11 +22,14 @@ const Ranking = () => {
 
   const navigateWithTransition = (targetRoute: string) => {
     const direction = getNavigationDirection(targetRoute, location.pathname);
-    applyPageTransition(direction);
-    
-    setTimeout(() => {
+    const pageElement = document.querySelector('.page-content') as HTMLElement | null;
+
+    if (pageElement && direction !== 'none') {
+      applyPageTransition(pageElement, direction, false);
+      setTimeout(() => navigate(targetRoute), 50);
+    } else {
       navigate(targetRoute);
-    }, 100);
+    }
   };
 
   useEffect(() => {

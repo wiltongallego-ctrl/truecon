@@ -11,6 +11,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@azure/msal-browser": "^4.25.0",
+    "@azure/msal-react": "^3.0.20",
     "@capacitor/android": "^7.4.3",
     "@capacitor/core": "^7.4.3",
     "@hookform/resolvers": "^3.10.0",

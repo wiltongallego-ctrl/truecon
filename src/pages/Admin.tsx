@@ -322,7 +322,8 @@ const Admin = () => {
       .update({
         start_date: phaseFormData.start_date,
         end_date: phaseFormData.end_date || null,
-        allow_completion_after_deadline: phaseFormData.allow_completion_after_deadline
+        // Temporariamente removido até aplicar migração:
+        // allow_completion_after_deadline: phaseFormData.allow_completion_after_deadline
       })
       .eq("id", phaseId);
 
@@ -400,23 +401,9 @@ const Admin = () => {
 
   const resetSystem = async () => {
     try {
-      // Zerar progresso
-      await supabase.from("user_phase_progress").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-      
-      // Zerar posts do grupo
-      await supabase.from("group_posts").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-      
-      // Zerar membros de grupos
-      await supabase.from("group_members").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-      
-      // Zerar grupos
-      await supabase.from("groups").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-      
-      // Resetar XP de todos os usuários
-      await supabase.from("profiles").update({ total_xp: 0, last_checkin_at: null }).neq("user_id", "00000000-0000-0000-0000-000000000000");
-
-      // Resetar todas as fases para inativas (estado inicial)
-      await supabase.from("phases").update({ is_active: false }).neq("id", "00000000-0000-0000-0000-000000000000");
+      // Reset completo via RPC (bypass RLS e operações em lote)
+      const { error } = await supabase.rpc('admin_reset_system');
+      if (error) throw error;
 
       // Limpar localStorage de tooltips para todos os usuários
       const keys = Object.keys(localStorage);

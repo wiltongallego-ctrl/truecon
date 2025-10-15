@@ -7,12 +7,13 @@ import TrueLogo from "@/components/TrueLogo";
 import { Home as HomeIcon, Trophy, Users, LogOut, Pencil, Settings, Calendar, UserPlus, Palette, Target, Zap, Presentation } from "lucide-react";
 import BottomNavigation from "../components/ui/BottomNavigation";
 import { Button } from "@/components/ui/button";
-import Phase1Modal from "@/components/modals/Phase1Modal";
 import Phase2Modal from "@/components/modals/Phase2Modal";
 import Phase3Modal from "@/components/modals/Phase3Modal";
 import Phase4Modal from "@/components/modals/Phase4Modal";
 import PhaseTooltipModal from "@/components/ui/PhaseTooltipModal";
 import { getNavigationDirection, applyPageTransition } from "@/lib/pageTransitions";
+import { getDisplayName } from "@/utils/nameUtils";
+import faseNotFoundImg from "../../img/fase_notfound.png";
 
 interface Phase {
   id: string;
@@ -36,7 +37,6 @@ const Home = () => {
   const [phases, setPhases] = useState<Phase[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [phase1ModalOpen, setPhase1ModalOpen] = useState(false);
   const [phase2ModalOpen, setPhase2ModalOpen] = useState(false);
   const [phase3ModalOpen, setPhase3ModalOpen] = useState(false);
   const [phase4ModalOpen, setPhase4ModalOpen] = useState(false);
@@ -49,6 +49,17 @@ const Home = () => {
   const [showPhase2Tooltip, setShowPhase2Tooltip] = useState(false);
   const [hasShownPhase1Tooltip, setHasShownPhase1Tooltip] = useState(false);
   const [hasShownPhase2Tooltip, setHasShownPhase2Tooltip] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  
+
+  // (Removido) fluxo antigo de busca de dados para CheckinModal
+
+  // (Removido) cálculo de streak do fluxo antigo
+
+  // (Removido) função de check-in do fluxo antigo
+
+  // (Removido) callback de celebração do fluxo antigo
+
   // Função para navegar com transição
   const navigateWithTransition = (targetRoute: string) => {
     const direction = getNavigationDirection(targetRoute, location.pathname);
@@ -223,6 +234,112 @@ const Home = () => {
     }
   };
 
+  // Função para lidar com a conclusão de uma fase
+  const handlePhaseCompleted = (phaseNumber: number) => {
+    if (phaseNumber === 1) {
+      setHasCompletedPhase1(true);
+      // Não mostrar tooltip automaticamente - só quando clicar no botão
+    } else if (phaseNumber === 2) {
+      setHasCompletedPhase2(true);
+    }
+  };
+
+  // Função para lidar com o clique no botão da Fase 1 concluída
+  const handlePhase1CompletedClick = () => {
+    const direction = getNavigationDirection('/phase/1', location.pathname);
+    const pageElement = document.querySelector('.page-content') as HTMLElement | null;
+
+    if (pageElement && direction !== 'none') {
+      applyPageTransition(pageElement, direction, false);
+      setTimeout(() => navigate('/phase/1'), 50);
+    } else {
+      navigate('/phase/1');
+    }
+  };
+
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validar tipo de arquivo
+    if (!file.type.startsWith('image/')) {
+      toast.error("Por favor, selecione uma imagem");
+      return;
+    }
+
+    // Validar tamanho (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("A imagem deve ter no máximo 5MB");
+      return;
+    }
+
+    setUploadingPhoto(true);
+
+    try {
+      // Upload para o storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = fileName;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Obter URL pública
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      // Atualizar profile com a nova foto
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('user_id', user.id);
+
+      if (updateError) throw updateError;
+
+      // Atualizar user metadata
+      const { error: metadataError } = await supabase.auth.updateUser({
+        data: { 
+          avatar_url: publicUrl,
+          picture: publicUrl
+        }
+      });
+
+      if (metadataError) throw metadataError;
+
+      toast.success("Foto de perfil atualizada!");
+      
+      // Recarregar dados do usuário
+      const { data: { user: updatedUser } } = await supabase.auth.getUser();
+      if (updatedUser) {
+        setUser(updatedUser);
+      }
+    } catch (error: any) {
+      toast.error("Erro ao fazer upload da foto");
+      console.error('Upload error:', error);
+    } finally {
+      setUploadingPhoto(false);
+      // Limpar o input
+      event.target.value = '';
+    }
+  };
+
+  // Mostrar balão/tooltip do botão da Fase 1 após primeiro check-in
+  useEffect(() => {
+    if (user && hasEverCheckedIn && !hasShownPhase1Tooltip) {
+      const timer = setTimeout(() => setShowPhase1Tooltip(true), 800);
+      setHasShownPhase1Tooltip(true);
+      localStorage.setItem(`hasShownPhase1Tooltip_${user.id}`, 'true');
+      return () => clearTimeout(timer);
+    }
+  }, [hasEverCheckedIn, user]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -230,6 +347,12 @@ const Home = () => {
       </div>
     );
   }
+
+  // Fases visíveis após regras de ocultação (ex.: esconder Fase 1 após primeiro check-in)
+  const visiblePhases = phases.filter(
+    (phase) => !(phase.phase_number === 1 && hasEverCheckedIn)
+  );
+  const shouldShowEmpty = phases.length === 0 || visiblePhases.length === 0;
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-white page-content">
@@ -270,18 +393,32 @@ const Home = () => {
                   <div 
                     className={`w-20 h-20 rounded-full bg-gradient-to-br from-primary via-primary/90 to-primary/80 flex items-center justify-center text-white text-2xl font-bold shadow-xl border-4 border-white ring-2 ring-primary/20 ${user?.user_metadata?.picture || user?.user_metadata?.avatar_url ? 'hidden' : 'flex'}`}
                   >
-                    {profile?.name?.[0]?.toUpperCase() || user?.user_metadata?.name?.[0]?.toUpperCase() || user?.user_metadata?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase()}
+                    {getDisplayName(profile, user)?.[0]?.toUpperCase()}
                   </div>
-                  <button className="absolute -bottom-1 -right-1 w-8 h-8 bg-white border-2 border-primary/20 rounded-full flex items-center justify-center shadow-lg hover:bg-primary hover:text-white transition-all duration-200 hover:scale-110">
-                    <Pencil className="w-4 h-4 text-gray-600 hover:text-white" />
-                  </button>
+                  <input
+                    type="file"
+                    id="profile-photo-upload"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                    disabled={uploadingPhoto}
+                  />
+                  <label htmlFor="profile-photo-upload">
+                    <button 
+                      className={`absolute -bottom-1 -right-1 w-8 h-8 bg-white border-2 border-primary/20 rounded-full flex items-center justify-center shadow-lg hover:bg-primary hover:text-white transition-all duration-200 hover:scale-110 ${uploadingPhoto ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      disabled={uploadingPhoto}
+                      type="button"
+                    >
+                      <Pencil className="w-4 h-4 text-gray-600 hover:text-white" />
+                    </button>
+                  </label>
                   <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 </div>
                 
                 {/* Informações do usuário - expandido para ocupar mais espaço */}
                 <div className="flex-1 flex flex-col gap-1">
                   <div className="text-xl font-bold text-gray-900 tracking-tight leading-tight">
-                    {profile?.name || user?.user_metadata?.name || user?.user_metadata?.full_name || user?.email?.split('@')[0]}
+                    {getDisplayName(profile, user)}
                   </div>
                   <div className="text-sm text-gray-500 font-medium">
                     {profile?.email || user?.email}
@@ -349,29 +486,33 @@ const Home = () => {
             <div className="text-xl font-bold text-gray-900 text-center tracking-tight">
               🎯 Fases Liberadas
             </div>
-            {phases.length === 0 ? (
+            {shouldShowEmpty ? (
               <div className="flex flex-col items-center justify-center py-12 px-6">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center mb-4 animate-pulse">
-                  <Target className="w-8 h-8 text-gray-400" />
-                </div>
+                {/* Imagem de estado vazio com fallback */}
+                <img
+                  src={faseNotFoundImg}
+                  alt="Nenhuma fase iniciada"
+                  className="w-24 h-24 mb-4 opacity-90 object-contain"
+                  onError={(e) => { e.currentTarget.src = '/placeholder.svg'; }}
+                />
                 <div className="text-sm text-gray-600 text-center font-medium mb-2">
-                  Nenhuma fase liberada!
+                  Nenhuma fase iniciada
                 </div>
                 <div className="text-xs text-gray-500 text-center">
-                  Quando uma fase for liberada, aparecerá aqui.
+                  Assim que uma fase estiver disponível, ela aparecerá aqui.
                 </div>
               </div>
             ) : (
-              <div className={`${
-                phases.filter(phase => !(phase.phase_number === 1 && hasEverCheckedIn)).length === 1 
-                  ? 'flex justify-center' 
-                  : 'grid grid-cols-2 gap-4'
-              }`}>
-                {phases.map((phase, index) => {
+              <div
+                className={`${
+                  visiblePhases.length === 1
+                    ? 'flex justify-center'
+                    : 'grid grid-cols-2 gap-4'
+                }`}
+              >
+                {visiblePhases.map((phase, index) => {
                   // Não mostrar o card da Fase 1 se o usuário já fez pelo menos um check-in
-                  if (phase.phase_number === 1 && hasEverCheckedIn) {
-                    return null;
-                  }
+                  // (filtrado em visiblePhases)
 
                   // Função para obter o ícone da fase
                   const getPhaseIcon = (phaseNumber: number) => {
@@ -393,7 +534,8 @@ const Home = () => {
                     }
                   };
 
-                  const isDisabled = phase.phase_number === 1 && !canCheckInToday;
+                  // Permitir sempre navegação para Fase 1 (novo fluxo)
+                  const isDisabled = false;
 
                   return (
                     <div
@@ -409,7 +551,10 @@ const Home = () => {
                       onClick={() => {
                         if (isDisabled) return;
                         
-                        if (phase.phase_number === 2) {
+                        if (phase.phase_number === 1) {
+                          // Novo fluxo: sempre navegar para a página da Fase 1
+                          navigate(`/phase/${phase.phase_number}`);
+                        } else if (phase.phase_number === 2) {
                           setPhase2ModalOpen(true);
                         } else if (phase.phase_number === 3) {
                           setPhase3ModalOpen(true);
@@ -472,13 +617,16 @@ const Home = () => {
       {/* Bottom Navigation */}
       <BottomNavigation 
         currentPage="home"
-        showPhase1Button={hasCompletedPhase1}
+        showPhase1Button={hasEverCheckedIn}
         showPhase2Button={hasCompletedPhase2}
         canCheckInToday={canCheckInToday}
         hasCompletedPhase2={hasCompletedPhase2}
-        onPhase1Click={() => setPhase1ModalOpen(true)}
+        hasCompletedPhase1={hasCompletedPhase1}
+        onPhase1Click={handlePhase1CompletedClick}
         onPhase2Click={() => setPhase2ModalOpen(true)}
       />
+
+      {/* (Removido) tooltip específico da Fase 1 concluída (fluxo antigo) */}
 
       {/* Phase Tooltip Modals */}
       <PhaseTooltipModal
@@ -495,45 +643,47 @@ const Home = () => {
       />
 
       {/* Phase Modals */}
-      <Phase1Modal 
-        open={phase1ModalOpen} 
+      <Phase2Modal 
+        open={phase2ModalOpen} 
         onOpenChange={(open) => {
-          setPhase1ModalOpen(open);
+          setPhase2ModalOpen(open);
           if (!open && user) {
             // Recarregar dados quando fechar o modal
             const refreshData = async () => {
-              // Atualizar perfil
-              const { data: profileData } = await supabase
-                .from("profiles")
-                .select("total_xp, name, email, last_checkin_at")
-                .eq("user_id", user.id)
-                .single();
+              const phase2Data = await supabase
+                .from("phases")
+                .select("id")
+                .eq("phase_number", 2)
+                .maybeSingle();
 
-              if (profileData) {
-                setProfile(profileData);
-                
-                // Verificar se já fez check-in hoje
-                if (profileData.last_checkin_at) {
-                  setHasEverCheckedIn(true);
-                  const lastCheckin = new Date(profileData.last_checkin_at);
-                  const now = new Date();
-                  const hoursSinceLastCheckin = (now.getTime() - lastCheckin.getTime()) / (1000 * 60 * 60);
-                  
-                  // Se fez check-in nas últimas 24 horas, não pode fazer novamente
-                  setCanCheckInToday(hoursSinceLastCheckin >= 24);
-                } else {
-                  // Nunca fez check-in, pode fazer
-                  setHasEverCheckedIn(false);
-                  setCanCheckInToday(true);
-                }
+              if (phase2Data.data) {
+                const { data: phase2Progress } = await supabase
+                  .from("user_phase_progress")
+                  .select("completed")
+                  .eq("user_id", user.id)
+                  .eq("phase_id", phase2Data.data.id)
+                  .maybeSingle();
+                setHasCompletedPhase2(phase2Progress?.completed || false);
               }
 
               // Atualizar fases
-              const { data: phasesData } = await supabase
+              const { data: progressData } = await supabase
+                .from("user_phase_progress")
+                .select("phase_id, completed")
+                .eq("user_id", user.id)
+                .eq("completed", true);
+
+              const completedPhaseIds = progressData?.map(p => p.phase_id) || [];
+
+              let phasesQuery = supabase
                 .from("phases")
                 .select("id, phase_number, title, description, is_active")
-                .eq("is_active", true)
-                .order("display_order");
+                .eq("is_active", true);
+
+              if (completedPhaseIds.length > 0) {
+                phasesQuery = phasesQuery.not("id", "in", `(${completedPhaseIds.join(",")})`);
+              }
+              const { data: phasesData } = await phasesQuery.order("display_order");
               setPhases(phasesData || []);
             };
             refreshData();
@@ -702,6 +852,8 @@ const Home = () => {
           }
         }}
       />
+
+      {/* (Removido) CheckinModal direto (fluxo antigo) */}
     </div>
   );
 };

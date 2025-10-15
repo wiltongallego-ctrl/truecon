@@ -1,285 +1,253 @@
-import { useState, useEffect } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/lib/sweetAlert";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { CheckCircle2, Trophy, ArrowLeft, Clock } from "lucide-react";
-import { User } from "@supabase/supabase-js";
-import CheckinModal from "@/components/modals/CheckinModal";
-import CheckinSuccessModal from "@/components/modals/CheckinSuccessModal";
+import { ArrowLeft } from "lucide-react";
 import BottomNavigation from "../ui/BottomNavigation";
+import { usePhase1Checkin } from "@/hooks/usePhase1Checkin";
+import Phase1Timeline from "@/components/ui/Phase1Timeline";
+import Phase1CompletionModal from "@/components/modals/Phase1CompletionModal";
+import Phase1TrackingModal from "@/components/modals/Phase1TrackingModal";
+import FloatingButton from "@/components/ui/FloatingButton";
 
 const Phase1Onboarding = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<any>(null);
-  const [canCheckIn, setCanCheckIn] = useState(false);
-  const [nextCheckInTime, setNextCheckInTime] = useState<Date | null>(null);
-  const [streak, setStreak] = useState(0);
-  const [showCheckinModal, setShowCheckinModal] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [xpGained, setXpGained] = useState(0);
-  const [phaseXP, setPhaseXP] = useState(10); // XP configurado para a fase
+  
+  const {
+    checkinDays,
+    currentDay,
+    completedDays,
+    isLoading,
+    error,
+    canCheckinToday,
+    hasCompletedFirstCycle,
+    showCompletionModal,
+    showTrackingModal,
+    nextCheckinTime,
+    timeUntilNextCheckin,
+    currentCycleStartDate,
+    performCheckin,
+    setShowCompletionModal,
+    setShowTrackingModal
+  } = usePhase1Checkin();
 
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
-      if (user) {
-        fetchProfile(user.id);
-        fetchPhaseXP(); // Buscar XP configurado da fase
-      }
-    });
-  }, []);
-
-  const fetchPhaseXP = async () => {
-    try {
-      const { data: phase1 } = await supabase
-        .from("phases")
-        .select("xp_reward")
-        .eq("phase_number", 1)
-        .maybeSingle();
-
-      setPhaseXP(phase1?.xp_reward || 10);
-    } catch (error) {
-      console.error("Erro ao buscar XP da fase:", error);
-      setPhaseXP(10); // Fallback
-    }
-  };
-
-  const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
+  const handleCheckin = async () => {
+    if (!canCheckinToday) return;
     
-    if (data) {
-      setProfile(data);
-      checkCanCheckIn(data.last_checkin_at);
-      
-      // Calcular streak baseado nos check-ins consecutivos
-      const calculatedStreak = await calculateStreak(userId, data.last_checkin_at);
-      setStreak(calculatedStreak);
+    const success = await performCheckin();
+    if (success) {
+      // Sucesso será tratado pelo hook
     }
   };
 
-  // Função para calcular o streak baseado nos check-ins consecutivos
-  const calculateStreak = async (userId: string, lastCheckinAt: string | null): Promise<number> => {
-    if (!lastCheckinAt) return 0;
-
-    const lastCheckin = new Date(lastCheckinAt);
-    const now = new Date();
-    const hoursSinceLastCheckin = (now.getTime() - lastCheckin.getTime()) / (1000 * 60 * 60);
-
-    // Se passou mais de 48 horas desde o último check-in, o streak foi quebrado
-    if (hoursSinceLastCheckin > 48) {
-      return 0;
-    }
-
-    // Para simplificar, vamos calcular o streak baseado na diferença de dias
-    // desde o primeiro check-in até hoje, assumindo check-ins diários
-    const firstCheckin = new Date(lastCheckinAt);
-    const daysDifference = Math.floor((now.getTime() - firstCheckin.getTime()) / (1000 * 60 * 60 * 24));
-    
-    // Se o usuário fez check-in recentemente (últimas 24-48h), conta como streak ativo
-    if (hoursSinceLastCheckin <= 48) {
-      return Math.max(1, daysDifference + 1);
-    }
-
-    return 0;
+  const getCheckinButtonText = () => {
+    if (completedDays === 7) return "Ciclo Completo! 🎉";
+    if (canCheckinToday) return `Fazer Check-in - Dia ${currentDay}`;
+    if (nextCheckinTime) return `Próximo check-in: ${timeUntilNextCheckin}`;
+    return "Check-in não disponível";
   };
 
-  const checkCanCheckIn = (lastCheckinAt: string | null) => {
-    if (!lastCheckinAt) {
-      // Nunca fez check-in
-      setCanCheckIn(true);
-      setShowCheckinModal(true);
-      return;
+  const getCheckinButtonStyle = () => {
+    if (completedDays === 7) {
+      return "w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold py-4 px-6 rounded-lg shadow-lg";
     }
-
-    const lastCheckin = new Date(lastCheckinAt);
-    const now = new Date();
-    const hoursSinceLastCheckin = (now.getTime() - lastCheckin.getTime()) / (1000 * 60 * 60);
-
-    if (hoursSinceLastCheckin >= 24) {
-      // Pode fazer check-in
-      setCanCheckIn(true);
-      setShowCheckinModal(true);
-      setNextCheckInTime(null);
-    } else {
-      // Ainda não pode fazer check-in
-      setCanCheckIn(false);
-      const nextTime = new Date(lastCheckin.getTime() + (24 * 60 * 60 * 1000));
-      setNextCheckInTime(nextTime);
+    if (canCheckinToday) {
+      return "w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold py-4 px-6 rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-200 transform hover:scale-105 shadow-lg";
     }
+    return "w-full bg-gray-300 text-gray-500 font-semibold py-4 px-6 rounded-lg cursor-not-allowed";
   };
 
-  const handleCheckIn = async () => {
-    if (!user || !canCheckIn) return;
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background page-content pb-20">
+        <div className="max-w-md mx-auto p-5">
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          </div>
+        </div>
+        <BottomNavigation />
+      </div>
+    );
+  }
 
-    try {
-      // Buscar o XP configurado para a Fase 1
-      const { data: phase1 } = await supabase
-        .from("phases")
-        .select("xp_reward")
-        .eq("phase_number", 1)
-        .maybeSingle();
-
-      const xpToAward = phase1?.xp_reward || 10; // Fallback para 10 XP se não configurado
-      const now = new Date();
-      const newXP = (profile?.total_xp || 0) + xpToAward;
-      
-      const { error } = await supabase
-        .from("profiles")
-        .update({ 
-          total_xp: newXP,
-          last_checkin_at: now.toISOString()
-        })
-        .eq("user_id", user.id);
-
-      if (error) {
-        toast.error("Erro ao fazer check-in");
-        return;
-      }
-
-      setCanCheckIn(false);
-      
-      // Calcular novo streak após o check-in
-      const newStreak = await calculateStreak(user.id, now.toISOString());
-      setStreak(newStreak);
-      
-      setXpGained(xpToAward);
-      setShowCheckinModal(false);
-      setShowSuccessModal(true);
-      fetchProfile(user.id);
-    } catch (error) {
-      console.error("Erro ao fazer check-in:", error);
-      toast.error("Erro ao fazer check-in");
-    }
-  };
-
-  const getTimeRemaining = () => {
-    if (!nextCheckInTime) return "";
-    
-    const now = new Date();
-    const diff = nextCheckInTime.getTime() - now.getTime();
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    return `${hours}h ${minutes}m`;
-  };
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background page-content pb-20">
+        <div className="max-w-md mx-auto p-5">
+          <div className="flex items-center gap-4 mb-6">
+            <Button variant="outline" size="icon" onClick={() => navigate("/home")}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold">Fase 1: Onboarding</h1>
+              <p className="text-sm text-muted-foreground">Check-in diário - 7 dias</p>
+            </div>
+          </div>
+          
+          <div className="text-center p-8">
+            <div className="text-red-500 mb-4">
+              <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">Erro ao carregar dados</h2>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()} className="bg-blue-500 hover:bg-blue-600">
+              Tentar Novamente
+            </Button>
+          </div>
+        </div>
+        <BottomNavigation />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background page-content pb-20">
       <div className="max-w-md mx-auto p-5">
-        <div className="flex items-center gap-4 mb-6">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => navigate("/home")}
-          >
+        {/* Header */}
+        <div className="flex items-center gap-4 mb-8">
+          <Button variant="outline" size="icon" onClick={() => navigate("/home")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold">Fase 1: Onboarding</h1>
-            <p className="text-sm text-muted-foreground">Check-in diário</p>
+            <p className="text-sm text-muted-foreground">Check-in diário - 7 dias</p>
           </div>
         </div>
 
-        <div className="space-y-4">
-          {/* Card de Check-in */}
-          <Card className="p-6">
-            <div className="flex flex-col items-center gap-4">
-              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
-                <CheckCircle2 className="w-10 h-10 text-primary" />
-              </div>
-              
-              <div className="text-center">
-                <h2 className="text-xl font-semibold mb-2">Check-in Diário</h2>
-                <p className="text-sm text-muted-foreground">
-                  Faça seu check-in diário e ganhe {phaseXP} XP!
-                </p>
-              </div>
+        {/* Introdução */}
+        <div className="mb-8 p-6 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg">
+          <h2 className="text-xl font-semibold text-gray-800 mb-3">
+            🎯 Bem-vindo à sua jornada!
+          </h2>
+          <p className="text-gray-700 mb-4">
+            Complete 7 check-ins diários para estabelecer o hábito e desbloquear novas funcionalidades.
+          </p>
+          <div className="flex items-center space-x-2 text-sm text-blue-700">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>Check-ins ficam disponíveis às 8h da manhã</span>
+          </div>
+        </div>
 
-              {canCheckIn ? (
-                <Button 
-                  className="w-full" 
-                  onClick={handleCheckIn}
-                  size="lg"
-                >
-                  Fazer Check-in (+10 XP)
-                </Button>
-              ) : (
-                <div className="w-full p-4 bg-muted border rounded-lg text-center">
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <Clock className="w-4 h-4 text-muted-foreground" />
-                    <p className="font-medium">Próximo check-in disponível em:</p>
-                  </div>
-                  <p className="text-2xl font-bold text-primary">{getTimeRemaining()}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Você pode fazer check-in a cada 24 horas
+        {/* Timeline */}
+        <div className="mb-8">
+          <Phase1Timeline 
+            checkinDays={checkinDays} 
+            completedDays={completedDays} 
+          />
+        </div>
+
+        {/* Botão de Check-in */}
+        <div className="mb-8">
+          <button
+            onClick={handleCheckin}
+            disabled={!canCheckinToday}
+            className={getCheckinButtonStyle()}
+          >
+            {getCheckinButtonText()}
+          </button>
+          
+          {/* Informação adicional */}
+          {!canCheckinToday && nextCheckinTime && (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-yellow-800">
+                    Próximo check-in disponível em: <span className="font-mono">{timeUntilNextCheckin}</span>
+                  </p>
+                  <p className="text-xs text-yellow-700 mt-1">
+                    Os check-ins ficam disponíveis às 8h da manhã
                   </p>
                 </div>
-              )}
-            </div>
-          </Card>
-
-          {/* Card de Streak */}
-          <Card className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
-                <Trophy className="w-6 h-6 text-warning" />
               </div>
-              <div className="flex-1">
-                <h3 className="font-semibold">Sequência de Check-ins</h3>
-                <p className="text-2xl font-bold text-primary">{streak} dias</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Continue fazendo check-in para manter sua sequência!
+            </div>
+          )}
+        </div>
+
+        {/* Estatísticas */}
+        <div className="grid grid-cols-2 gap-4 mb-8">
+          <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">{completedDays}</div>
+              <div className="text-sm text-gray-600">Check-ins Feitos</div>
+            </div>
+          </div>
+          <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">{7 - completedDays}</div>
+              <div className="text-sm text-gray-600">Dias Restantes</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Motivação */}
+        {completedDays > 0 && completedDays < 7 && (
+          <div className="mb-8 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="text-sm font-medium text-green-800">
+                  Ótimo progresso! Continue assim! 🚀
+                </p>
+                <p className="text-xs text-green-700 mt-1">
+                  Você está construindo um hábito sólido. Faltam apenas {7 - completedDays} dias!
                 </p>
               </div>
             </div>
-          </Card>
+          </div>
+        )}
 
-          {/* Objetivos da Fase */}
-          <Card className="p-6">
-            <h3 className="font-semibold mb-4">Objetivos desta fase</h3>
-            <ul className="space-y-3">
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="w-5 h-5 text-primary mt-0.5" />
-                <span className="text-sm">Completar seu perfil</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="w-5 h-5 text-muted-foreground mt-0.5" />
-                <span className="text-sm text-muted-foreground">Fazer check-in por 7 dias consecutivos</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="w-5 h-5 text-muted-foreground mt-0.5" />
-                <span className="text-sm text-muted-foreground">Ganhar seus primeiros 100 XP</span>
-              </li>
-            </ul>
-          </Card>
-        </div>
+        {/* Ciclo Completo */}
+        {completedDays === 7 && (
+          <div className="mb-8 p-6 bg-gradient-to-r from-green-100 to-emerald-100 border border-green-300 rounded-lg">
+            <div className="text-center">
+              <div className="text-4xl mb-2">🎉</div>
+              <h3 className="text-xl font-bold text-green-800 mb-2">
+                Parabéns! Ciclo Completo!
+              </h3>
+              <p className="text-green-700 mb-4">
+                Você completou seus 7 dias de check-in. Seu próximo ciclo começará automaticamente às 8h da manhã.
+              </p>
+              <div className="text-sm text-green-600">
+                ✨ Nova funcionalidade desbloqueada: Acompanhamento contínuo
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      <CheckinModal
-        open={showCheckinModal}
-        onOpenChange={setShowCheckinModal}
-        onCheckIn={handleCheckIn}
-        streak={streak}
-        canCheckIn={canCheckIn}
-        lastCheckinAt={profile?.last_checkin_at}
-        xpReward={phaseXP}
+      {/* Botão Flutuante (aparece após primeira conclusão) */}
+      {hasCompletedFirstCycle && (
+        <FloatingButton
+          onClick={() => setShowTrackingModal(true)}
+          completedDays={completedDays}
+          isVisible={hasCompletedFirstCycle}
+        />
+      )}
+
+      {/* Modais */}
+      <Phase1CompletionModal
+        isOpen={showCompletionModal}
+        onClose={() => setShowCompletionModal(false)}
       />
 
-      <CheckinSuccessModal
-        open={showSuccessModal}
-        onOpenChange={setShowSuccessModal}
-        xpGained={xpGained}
-        streak={streak}
+      <Phase1TrackingModal
+        isOpen={showTrackingModal}
+        onClose={() => setShowTrackingModal(false)}
+        checkinDays={checkinDays}
+        completedDays={completedDays}
+        timeUntilNextCheckin={timeUntilNextCheckin}
+        nextCheckinTime={nextCheckinTime}
+        currentCycleStartDate={currentCycleStartDate}
       />
 
-      {/* Bottom Navigation */}
       <BottomNavigation />
     </div>
   );
