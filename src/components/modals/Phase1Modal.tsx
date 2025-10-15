@@ -18,10 +18,11 @@ interface Phase1ModalProps {
   onOpenChange: (open: boolean) => void;
   onPhaseCompleted?: () => void;
   isFirstTimeClick?: boolean;
+  isFirstCompletion?: boolean;
   onShowTooltip?: () => void; // Callback para mostrar tooltip
 }
 
-const Phase1Modal = ({ open, onOpenChange, onPhaseCompleted, isFirstTimeClick = false, onShowTooltip }: Phase1ModalProps) => {
+const Phase1Modal = ({ open, onOpenChange, onPhaseCompleted, isFirstTimeClick = false, isFirstCompletion = true, onShowTooltip }: Phase1ModalProps) => {
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [streak, setStreak] = useState(0);
@@ -280,7 +281,7 @@ const Phase1Modal = ({ open, onOpenChange, onPhaseCompleted, isFirstTimeClick = 
       <Dialog open={open} onOpenChange={(isOpen) => {
         onOpenChange(isOpen);
         // Se o modal está sendo fechado E a fase foi completada, mostrar o tooltip
-        if (!isOpen && hasCompletedPhase) {
+        if (!isOpen && hasCompletedPhase && isFirstCompletion) {
           // Verificar se é a primeira vez que o tooltip será mostrado
           const hasShownPhase1CompletedTooltip = localStorage.getItem('hasShownPhase1CompletedTooltip');
           if (!hasShownPhase1CompletedTooltip) {

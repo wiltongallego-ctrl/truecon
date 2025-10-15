@@ -6,8 +6,7 @@ import BottomNavigation from "../ui/BottomNavigation";
 import { usePhase1Checkin } from "@/hooks/usePhase1Checkin";
 import Phase1Timeline from "@/components/ui/Phase1Timeline";
 import Phase1CompletionModal from "@/components/modals/Phase1CompletionModal";
-import Phase1TrackingModal from "@/components/modals/Phase1TrackingModal";
-import FloatingButton from "@/components/ui/FloatingButton";
+import CheckinModal from "@/components/modals/CheckinModal";
 
 const Phase1Onboarding = () => {
   const navigate = useNavigate();
@@ -21,13 +20,12 @@ const Phase1Onboarding = () => {
     canCheckinToday,
     hasCompletedFirstCycle,
     showCompletionModal,
-    showTrackingModal,
     nextCheckinTime,
     timeUntilNextCheckin,
     currentCycleStartDate,
     performCheckin,
     setShowCompletionModal,
-    setShowTrackingModal
+    resetCycle
   } = usePhase1Checkin();
 
   const handleCheckin = async () => {
@@ -48,10 +46,10 @@ const Phase1Onboarding = () => {
 
   const getCheckinButtonStyle = () => {
     if (completedDays === 7) {
-      return "w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold py-4 px-6 rounded-lg shadow-lg";
+      return "w-full bg-gradient-to-r from-primary to-primary/90 text-white font-semibold py-4 px-6 rounded-lg shadow-lg";
     }
     if (canCheckinToday) {
-      return "w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold py-4 px-6 rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-200 transform hover:scale-105 shadow-lg";
+      return "w-full bg-gradient-to-r from-primary to-primary/90 text-white font-semibold py-4 px-6 rounded-lg hover:from-primary hover:to-primary/80 transition-all duration-200 transform hover:scale-105 shadow-lg";
     }
     return "w-full bg-gray-300 text-gray-500 font-semibold py-4 px-6 rounded-lg cursor-not-allowed";
   };
@@ -64,7 +62,12 @@ const Phase1Onboarding = () => {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
           </div>
         </div>
-        <BottomNavigation />
+        <BottomNavigation 
+          currentPage="checkin"
+          showPhase1Button={hasCompletedFirstCycle}
+          canCheckinToday={canCheckinToday}
+          hasCompletedPhase1={hasCompletedFirstCycle}
+        />
       </div>
     );
   }
@@ -96,7 +99,12 @@ const Phase1Onboarding = () => {
             </Button>
           </div>
         </div>
-        <BottomNavigation />
+        <BottomNavigation 
+          currentPage="checkin"
+          showPhase1Button={hasCompletedFirstCycle}
+          canCheckinToday={canCheckinToday}
+          hasCompletedPhase1={hasCompletedFirstCycle}
+        />
       </div>
     );
   }
@@ -223,32 +231,18 @@ const Phase1Onboarding = () => {
         )}
       </div>
 
-      {/* Botão Flutuante (aparece após primeira conclusão) */}
-      {hasCompletedFirstCycle && (
-        <FloatingButton
-          onClick={() => setShowTrackingModal(true)}
-          completedDays={completedDays}
-          isVisible={hasCompletedFirstCycle}
-        />
-      )}
-
       {/* Modais */}
       <Phase1CompletionModal
         isOpen={showCompletionModal}
         onClose={() => setShowCompletionModal(false)}
       />
 
-      <Phase1TrackingModal
-        isOpen={showTrackingModal}
-        onClose={() => setShowTrackingModal(false)}
-        checkinDays={checkinDays}
-        completedDays={completedDays}
-        timeUntilNextCheckin={timeUntilNextCheckin}
-        nextCheckinTime={nextCheckinTime}
-        currentCycleStartDate={currentCycleStartDate}
+      <BottomNavigation 
+        currentPage="checkin"
+        showPhase1Button={hasCompletedFirstCycle}
+        canCheckinToday={canCheckinToday}
+        hasCompletedPhase1={hasCompletedFirstCycle}
       />
-
-      <BottomNavigation />
     </div>
   );
 };

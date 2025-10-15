@@ -1,14 +1,13 @@
 import { Trophy, Home, Calendar, Users, CheckCircle2 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+ 
 import { getNavigationDirection, applyBodyTransition } from "../../lib/pageTransitions";
 
 interface BottomNavigationProps {
   currentPage: string;
   showPhase1Button?: boolean;
   showPhase2Button?: boolean;
-  canCheckInToday?: boolean;
+  canCheckinToday?: boolean; // alinhar nome com páginas que usam o hook
   hasCompletedPhase2?: boolean;
   hasCompletedPhase1?: boolean;
   onPhase1Click?: () => void;
@@ -20,7 +19,7 @@ const BottomNavigation = ({
   currentPage,
   showPhase1Button = false,
   showPhase2Button = false,
-  canCheckInToday = false,
+  canCheckinToday = false,
   hasCompletedPhase2 = false,
   hasCompletedPhase1 = false,
   onPhase1Click,
@@ -29,31 +28,7 @@ const BottomNavigation = ({
 }: BottomNavigationProps) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [phase1Active, setPhase1Active] = useState(true);
-  const [phase2Active, setPhase2Active] = useState(true);
-
-  useEffect(() => {
-    const checkPhasesStatus = async () => {
-      // Verificar status da fase 1
-      const { data: phase1Data } = await supabase
-        .from("phases")
-        .select("is_active")
-        .eq("phase_number", 1)
-        .maybeSingle();
-
-      // Verificar status da fase 2
-      const { data: phase2Data } = await supabase
-        .from("phases")
-        .select("is_active")
-        .eq("phase_number", 2)
-        .maybeSingle();
-
-      setPhase1Active(phase1Data?.is_active || false);
-      setPhase2Active(phase2Data?.is_active || false);
-    };
-
-    checkPhasesStatus();
-  }, []);
+  // Removido gate por status de fase para evitar ocultar botões indevidamente
 
   const navigateWithTransition = (targetRoute: string) => {
     const direction = getNavigationDirection(targetRoute, location.pathname);
@@ -64,75 +39,67 @@ const BottomNavigation = ({
     }, 100);
   };
 
+  // Classe de rótulos inline (movida para CSS dedicado do footer)
+  const labelClass = "bottom-nav-label";
+
+  // Determina página ativa usando prop ou pathname
+  const activePage = (currentPage || (() => {
+    const path = location.pathname;
+    if (path.startsWith("/home")) return "home";
+    if (path.startsWith("/ranking")) return "ranking";
+    if (path.startsWith("/phase/1")) return "checkin";
+    return "";
+  })());
+
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-[#040404] shadow-lg z-40">
-      <div className="max-w-md mx-auto px-4 py-2">
-        <div className="flex items-center justify-between relative">
-          {/* Container esquerdo */}
-          <div className="flex items-center gap-4">
-            {/* Botão Ranking */}
+    <div className="bottom-nav">
+      {/* Aumenta a altura do footer para descer o fundo preto e permitir a sobreposição do botão central */}
+      <div className="bottom-nav-inner">
+        {/* Grid com 3 colunas para espaçamento igual */}
+        <div className="bottom-nav-grid">
+          {/* Coluna esquerda */}
+          <div className="bottom-nav-cell-left">
+            {/* Ranking sempre à esquerda */}
             <button
               onClick={() => navigateWithTransition("/ranking")}
-              className={`h-9 w-9 flex items-center justify-center rounded-[5px] transition-colors ${
-                currentPage === 'ranking' ? 'bg-white/10' : 'hover:bg-white/10'
-              }`}
+              className={`bottom-nav-btn ${activePage === 'ranking' ? 'bottom-nav-btn-active' : ''}`}
             >
               <Trophy className="w-5 h-5 text-white" />
+              <span className={labelClass}>RANKING</span>
             </button>
+          </div>
 
-            {/* Botão Fase 1 (se disponível, ativa e NÃO concluída) */}
-            {showPhase1Button && phase1Active && !hasCompletedPhase1 && (
-              <button 
+          {/* Coluna central com container quadrado arredondado para Home */}
+          <div className="bottom-nav-cell-center">
+            <div className="bottom-nav-home-shell">
+              <button
+                onClick={() => navigateWithTransition("/home")}
+                className={`bottom-nav-home-btn ${activePage === 'home' ? 'bottom-nav-home-btn-active' : ''}`}
+                aria-label="Home"
+              >
+                <Home className="w-7 h-7 text-primary" />
+              </button>
+            </div>
+          </div>
+
+          {/* Coluna direita */}
+          <div className="bottom-nav-cell-right">
+            {/* Check-in à direita – só aparece após cumprir Fase 1 */}
+            {showPhase1Button && (
+              <button
                 id="phase1-button"
                 onClick={onPhase1Click || (() => navigateWithTransition("/phase/1"))}
-                className={`h-9 w-9 flex items-center justify-center rounded-[5px] hover:bg-white/10 transition-colors ${
-                  canCheckInToday ? 'pulse-green' : ''
-                }`}
+                className={`bottom-nav-btn ${activePage === 'checkin' ? 'bottom-nav-btn-active' : ''}`}
               >
-                <Calendar className={`w-5 h-5 ${canCheckInToday ? 'text-green-400' : 'text-white'}`} />
-              </button>
-            )}
-
-            {/* Botão Fase 1 Concluída (se concluída) */}
-            {hasCompletedPhase1 && (
-              <div className="relative">
-                <button 
-                  id="phase1-completed-button"
-                  onClick={onPhase1CompletedClick}
-                  className="h-9 w-9 flex items-center justify-center rounded-[5px] hover:bg-white/10 transition-colors bg-green-600/20"
-                >
-                  <CheckCircle2 className="w-5 h-5 text-green-400" />
-                </button>
-              </div>
-            )}
-          </div>
-          
-          {/* Botão Home sempre centralizado */}
-          <div className="absolute left-1/2 transform -translate-x-1/2">
-            <button
-              onClick={() => navigateWithTransition("/home")}
-              className={`h-9 w-9 flex items-center justify-center rounded-[5px] transition-colors ${
-                currentPage === 'home' ? 'bg-white/10' : 'hover:bg-white/10'
-              }`}
-            >
-              <Home className="w-5 h-5 text-primary" />
-            </button>
-          </div>
-
-          {/* Container direito */}
-          <div className="flex items-center gap-4">
-            {/* Botão Fase 2 (se disponível, ativa e completada) */}
-            {showPhase2Button && phase2Active && (
-              <button 
-                id="phase2-button"
-                onClick={onPhase2Click}
-                className="h-9 w-9 flex items-center justify-center rounded-[5px] hover:bg-white/10 transition-colors"
-              >
-                <Users className="w-5 h-5 text-white" />
+                <Calendar className={`w-6 h-6 ${(canCheckinToday || hasCompletedPhase1) ? 'text-primary' : 'text-white'}`} />
+                <span className={labelClass}>CHECK-IN</span>
               </button>
             )}
           </div>
         </div>
+
+        {/* Rótulo central HOME */}
+        {/* Rótulo HOME removido conforme solicitado */}
       </div>
     </div>
   );

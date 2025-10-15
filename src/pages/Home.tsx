@@ -11,8 +11,10 @@ import Phase2Modal from "@/components/modals/Phase2Modal";
 import Phase3Modal from "@/components/modals/Phase3Modal";
 import Phase4Modal from "@/components/modals/Phase4Modal";
 import PhaseTooltipModal from "@/components/ui/PhaseTooltipModal";
+import Phase1CompletionModal from "@/components/modals/Phase1CompletionModal";
 import { getNavigationDirection, applyPageTransition } from "@/lib/pageTransitions";
 import { getDisplayName } from "@/utils/nameUtils";
+import { usePhase1Checkin } from "@/hooks/usePhase1Checkin";
 import faseNotFoundImg from "../../img/fase_notfound.png";
 
 interface Phase {
@@ -41,14 +43,18 @@ const Home = () => {
   const [phase3ModalOpen, setPhase3ModalOpen] = useState(false);
   const [phase4ModalOpen, setPhase4ModalOpen] = useState(false);
   const [hasCompletedPhase2, setHasCompletedPhase2] = useState(false);
-  const [hasCompletedPhase1, setHasCompletedPhase1] = useState(false);
+  
+  // Usar o hook usePhase1Checkin para controlar a lógica da Fase 1
+  const { hasCompletedFirstCycle, hasUserRecord, hasAnyCheckin, isFirstCompletion, markTooltipAsSeen } = usePhase1Checkin();
+  
   const [hasEverCheckedIn, setHasEverCheckedIn] = useState(false);
   const [canCheckInToday, setCanCheckInToday] = useState(true);
   const [userRanking, setUserRanking] = useState<number | null>(null);
-  const [showPhase1Tooltip, setShowPhase1Tooltip] = useState(false);
   const [showPhase2Tooltip, setShowPhase2Tooltip] = useState(false);
-  const [hasShownPhase1Tooltip, setHasShownPhase1Tooltip] = useState(false);
   const [hasShownPhase2Tooltip, setHasShownPhase2Tooltip] = useState(false);
+  // Modal da Fase 1 (substitui tooltip)
+  const [showPhase1Modal, setShowPhase1Modal] = useState(false);
+  // Modal da Fase 1 é controlado apenas pelo is_first do banco de dados
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   
 
@@ -117,10 +123,8 @@ const Home = () => {
       if (!user) return;
 
       // Verificar se os tooltips já foram mostrados para este usuário
-      const hasShownPhase1 = localStorage.getItem(`hasShownPhase1Tooltip_${user.id}`) === 'true';
       const hasShownPhase2 = localStorage.getItem(`hasShownPhase2Tooltip_${user.id}`) === 'true';
       
-      setHasShownPhase1Tooltip(hasShownPhase1);
       setHasShownPhase2Tooltip(hasShownPhase2);
 
       // Fetch profile
@@ -170,24 +174,6 @@ const Home = () => {
 
       setIsAdmin(!!roleData);
 
-      // Verificar se o usuário completou a fase 1
-      const phase1Data = await supabase
-        .from("phases")
-        .select("id, is_active")
-        .eq("phase_number", 1)
-        .maybeSingle();
-
-      if (phase1Data.data) {
-        const { data: phase1Progress } = await supabase
-          .from("user_phase_progress")
-          .select("completed")
-          .eq("user_id", user.id)
-          .eq("phase_id", phase1Data.data.id)
-          .maybeSingle();
-
-        setHasCompletedPhase1(phase1Progress?.completed || false);
-      }
-
       // Verificar se o usuário completou a fase 2
       const phase2Data = await supabase
         .from("phases")
@@ -236,16 +222,13 @@ const Home = () => {
 
   // Função para lidar com a conclusão de uma fase
   const handlePhaseCompleted = (phaseNumber: number) => {
-    if (phaseNumber === 1) {
-      setHasCompletedPhase1(true);
-      // Não mostrar tooltip automaticamente - só quando clicar no botão
-    } else if (phaseNumber === 2) {
+    if (phaseNumber === 2) {
       setHasCompletedPhase2(true);
     }
   };
 
   // Função para lidar com o clique no botão da Fase 1 concluída
-  const handlePhase1CompletedClick = () => {
+  const handlePhase1CompletedClick = async () => {
     const direction = getNavigationDirection('/phase/1', location.pathname);
     const pageElement = document.querySelector('.page-content') as HTMLElement | null;
 
@@ -330,15 +313,28 @@ const Home = () => {
     }
   };
 
-  // Mostrar balão/tooltip do botão da Fase 1 após primeiro check-in
+  // (Removido) useEffect para tooltip da Fase 1
+
   useEffect(() => {
-    if (user && hasEverCheckedIn && !hasShownPhase1Tooltip) {
-      const timer = setTimeout(() => setShowPhase1Tooltip(true), 800);
-      setHasShownPhase1Tooltip(true);
-      localStorage.setItem(`hasShownPhase1Tooltip_${user.id}`, 'true');
-      return () => clearTimeout(timer);
+    console.log("🟡 Verificando modal da fase 1", {
+      isFirstCompletion,
+      hasCompletedFirstCycle,
+      hasAnyCheckin,
+      showPhase1Modal
+    });
+
+    if (showPhase1Modal) return;
+
+    // ✅ Regra corrigida: abre no primeiro check-in concluído
+    if (isFirstCompletion && hasAnyCheckin) {
+      console.log("✅ Abrindo modal da Fase 1 agora...");
+      setTimeout(() => setShowPhase1Modal(true), 500);
     }
-  }, [hasEverCheckedIn, user]);
+  }, [isFirstCompletion, hasAnyCheckin, showPhase1Modal]);
+
+
+
+  // (Removido) useEffect para tooltip da Fase 1 às 8h
 
   if (loading) {
     return (
@@ -617,24 +613,26 @@ const Home = () => {
       {/* Bottom Navigation */}
       <BottomNavigation 
         currentPage="home"
-        showPhase1Button={hasEverCheckedIn}
+        showPhase1Button={hasAnyCheckin}
         showPhase2Button={hasCompletedPhase2}
-        canCheckInToday={canCheckInToday}
+        canCheckinToday={canCheckInToday}
         hasCompletedPhase2={hasCompletedPhase2}
-        hasCompletedPhase1={hasCompletedPhase1}
+        hasCompletedPhase1={hasCompletedFirstCycle}
         onPhase1Click={handlePhase1CompletedClick}
         onPhase2Click={() => setPhase2ModalOpen(true)}
       />
 
-      {/* (Removido) tooltip específico da Fase 1 concluída (fluxo antigo) */}
-
-      {/* Phase Tooltip Modals */}
-      <PhaseTooltipModal
-        isOpen={showPhase1Tooltip}
-        onClose={() => setShowPhase1Tooltip(false)}
-        targetButtonId="phase1-button"
-        phaseNumber={1}
+      {/* Modal de conclusão da Fase 1 (com evidência do botão no rodapé) */}
+      <Phase1CompletionModal
+        isOpen={showPhase1Modal}
+        onClose={() => {
+          setShowPhase1Modal(false);
+          if (user && markTooltipAsSeen) {
+            markTooltipAsSeen();
+          }
+        }}
       />
+
       <PhaseTooltipModal
         isOpen={showPhase2Tooltip}
         onClose={() => setShowPhase2Tooltip(false)}
@@ -643,61 +641,6 @@ const Home = () => {
       />
 
       {/* Phase Modals */}
-      <Phase2Modal 
-        open={phase2ModalOpen} 
-        onOpenChange={(open) => {
-          setPhase2ModalOpen(open);
-          if (!open && user) {
-            // Recarregar dados quando fechar o modal
-            const refreshData = async () => {
-              const phase2Data = await supabase
-                .from("phases")
-                .select("id")
-                .eq("phase_number", 2)
-                .maybeSingle();
-
-              if (phase2Data.data) {
-                const { data: phase2Progress } = await supabase
-                  .from("user_phase_progress")
-                  .select("completed")
-                  .eq("user_id", user.id)
-                  .eq("phase_id", phase2Data.data.id)
-                  .maybeSingle();
-                setHasCompletedPhase2(phase2Progress?.completed || false);
-              }
-
-              // Atualizar fases
-              const { data: progressData } = await supabase
-                .from("user_phase_progress")
-                .select("phase_id, completed")
-                .eq("user_id", user.id)
-                .eq("completed", true);
-
-              const completedPhaseIds = progressData?.map(p => p.phase_id) || [];
-
-              let phasesQuery = supabase
-                .from("phases")
-                .select("id, phase_number, title, description, is_active")
-                .eq("is_active", true);
-
-              if (completedPhaseIds.length > 0) {
-                phasesQuery = phasesQuery.not("id", "in", `(${completedPhaseIds.join(",")})`);
-              }
-              const { data: phasesData } = await phasesQuery.order("display_order");
-              setPhases(phasesData || []);
-            };
-            refreshData();
-          }
-        }}
-        onPhaseCompleted={() => {
-          // Verificar se o tooltip já foi mostrado
-          if (user && !hasShownPhase1Tooltip) {
-            setTimeout(() => setShowPhase1Tooltip(true), 1000);
-            setHasShownPhase1Tooltip(true);
-            localStorage.setItem(`hasShownPhase1Tooltip_${user.id}`, 'true');
-          }
-        }}
-      />
       <Phase2Modal 
         open={phase2ModalOpen} 
         onOpenChange={(open) => {

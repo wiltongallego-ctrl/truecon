@@ -28,6 +28,7 @@ interface Phase1AggregatedRow {
   checkin_days: any[]; // array de datas (strings) ou objetos
   current_cycle: number;
   has_completed_first_time: boolean;
+  is_first: boolean;
   last_checkin_at: string | null;
   created_at?: string;
   updated_at?: string;
@@ -44,8 +45,10 @@ export interface UsePhase1CheckinReturn {
   // Estados de controle
   canCheckinToday: boolean;
   hasCompletedFirstCycle: boolean;
+  hasUserRecord: boolean;
+  hasAnyCheckin: boolean;
+  isFirstCompletion: boolean;
   showCompletionModal: boolean;
-  showTrackingModal: boolean;
   
   // Informações de tempo
   nextCheckinTime: Date | null;
@@ -55,8 +58,8 @@ export interface UsePhase1CheckinReturn {
   // Ações
   performCheckin: () => Promise<boolean>;
   setShowCompletionModal: (show: boolean) => void;
-  setShowTrackingModal: (show: boolean) => void;
   resetCycle: () => Promise<void>;
+  markTooltipAsSeen: () => Promise<void>;
 }
 
 const CHECKIN_RESET_HOUR = 8; // 8h da manhã
@@ -85,8 +88,10 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
   // Estados de controle
   const [canCheckinToday, setCanCheckinToday] = useState(false);
   const [hasCompletedFirstCycle, setHasCompletedFirstCycle] = useState(false);
+  const [hasUserRecord, setHasUserRecord] = useState(false);
+  const [hasAnyCheckin, setHasAnyCheckin] = useState(false);
+  const [isFirstCompletion, setIsFirstCompletion] = useState(true);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
-  const [showTrackingModal, setShowTrackingModal] = useState(false);
   
   // Estados de tempo
   const [nextCheckinTime, setNextCheckinTime] = useState<Date | null>(null);
@@ -217,6 +222,7 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
       }
 
       // Buscar ou inicializar o registro agregado do usuário
+      console.log('🔍 Debug Hook - Buscando dados do usuário:', user.id);
       const { data: existingRow, error: rowError } = await supabase
         .from('user_phase1_checkins')
         .select('*')
@@ -224,6 +230,7 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
         .maybeSingle<Phase1AggregatedRow>();
 
       if (rowError) throw rowError;
+      console.log('🔍 Debug Hook - Dados encontrados:', existingRow);
 
       let cycleStart: Date;
       let row: Phase1AggregatedRow | null = existingRow ?? null;
@@ -242,6 +249,7 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
             checkin_days: [],
             current_cycle: 1,
             has_completed_first_time: false,
+            is_first: true,
             last_checkin_at: null
           });
 
@@ -319,8 +327,40 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
       setCanCheckinToday(canCheckin);
 
       // Verificar se já completou algum ciclo
-      const hasCompleted = !!row?.has_completed_first_time || completed === CYCLE_DAYS;
+      // Se tem 7 check-ins no ciclo atual OU já marcou has_completed_first_time, considera como completado
+      const hasCompleted = !!row?.has_completed_first_time || completed >= CYCLE_DAYS;
       setHasCompletedFirstCycle(hasCompleted);
+
+      // Verificar se existe registro do usuário (para controlar exibição do botão)
+      setHasUserRecord(!!row);
+
+      // Verificar se já fez pelo menos um check-in
+      const hasAnyCheckinValue = !!row && row.checkin_days && row.checkin_days.length > 0;
+      setHasAnyCheckin(hasAnyCheckinValue);
+
+      // Verificar se é primeira conclusão (baseado no campo is_first + localStorage)
+      console.log('🔍 Debug Hook - row?.is_first:', row?.is_first);
+      console.log('🔍 Debug Hook - !!row?.is_first:', !!row?.is_first);
+      
+      // Chave do localStorage específica para o usuário
+      const localStorageKey = `phase1_is_first_${user?.id}`;
+      const localStorageValue = localStorage.getItem(localStorageKey);
+      
+      console.log('🔍 Debug Hook - localStorage value:', localStorageValue);
+      
+      // Se localStorage diz que não é mais first, respeitar isso
+      if (localStorageValue === 'false') {
+        console.log('🔍 Debug Hook - localStorage indica que não é mais first, definindo como false');
+        setIsFirstCompletion(false);
+      } else {
+        // Caso contrário, usar valor do banco
+        const isFirstValue = !!row?.is_first;
+        console.log('🔍 Debug Hook - Definindo isFirstCompletion como:', isFirstValue);
+        setIsFirstCompletion(isFirstValue);
+        
+        // Sincronizar localStorage com banco
+        localStorage.setItem(localStorageKey, isFirstValue.toString());
+      }
 
       // Calcular próximo check-in
       const nextTime = calculateNextCheckinTime();
@@ -363,14 +403,17 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
       }
 
       const updatedDays = [...normalizedDays, todayStr];
+      const completedNow = updatedDays.length >= CYCLE_DAYS;
+      
       const updates: Partial<Phase1AggregatedRow> = {
         checkin_days: updatedDays,
         last_checkin_at: today.toISOString()
       } as any;
 
-      const completedNow = updatedDays.length >= CYCLE_DAYS;
-      if (completedNow && !row.has_completed_first_time) {
+      // Definir has_completed_first_time como true quando completar o ciclo completo (7 dias)
+      if (updatedDays.length >= CYCLE_DAYS && !row.has_completed_first_time) {
         (updates as any).has_completed_first_time = true;
+        // Não alterar is_first automaticamente - deve ser controlado apenas pelo tooltip
       }
 
       const { error: updateError } = await supabase
@@ -465,6 +508,52 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
     }
   };
 
+  // Função para marcar tooltip como visto (is_first = false)
+  const markTooltipAsSeen = async () => {
+    if (!user) return;
+
+    try {
+      console.log('🔄 markTooltipAsSeen - Iniciando atualização para user:', user.id);
+      
+      // Atualizar localStorage imediatamente para resposta rápida
+      const localStorageKey = `phase1_is_first_${user.id}`;
+      localStorage.setItem(localStorageKey, 'false');
+      console.log('✅ markTooltipAsSeen - localStorage atualizado imediatamente');
+      
+      // Atualizar estado local imediatamente
+      setIsFirstCompletion(false);
+      console.log('✅ markTooltipAsSeen - Estado local atualizado: isFirstCompletion = false');
+      
+      const { error: updateError } = await supabase
+        .from('user_phase1_checkins')
+        .update({ is_first: false })
+        .eq('user_id', user.id);
+      
+      if (updateError) {
+        console.error('Erro ao marcar tooltip como visto:', updateError);
+        // Em caso de erro, reverter localStorage
+        localStorage.setItem(localStorageKey, 'true');
+        setIsFirstCompletion(true);
+        return;
+      }
+
+      console.log('✅ markTooltipAsSeen - Banco atualizado com sucesso');
+      
+      // Recarregar dados para garantir sincronização (opcional, pois já temos localStorage)
+      // await loadCheckinData();
+      // console.log('✅ markTooltipAsSeen - Dados recarregados');
+      
+    } catch (err) {
+      console.error('Erro ao marcar tooltip como visto:', err);
+      // Em caso de erro, reverter localStorage
+      if (user) {
+        const localStorageKey = `phase1_is_first_${user.id}`;
+        localStorage.setItem(localStorageKey, 'true');
+        setIsFirstCompletion(true);
+      }
+    }
+  };
+
   // Atualizar countdown a cada segundo
   useEffect(() => {
     if (!nextCheckinTime) return;
@@ -478,8 +567,10 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
 
   // Carregar dados iniciais
   useEffect(() => {
+    console.log('🔍 Debug Hook - useEffect inicial - user:', user?.id, 'hasInitialized:', hasInitializedRef.current);
     if (user && !hasInitializedRef.current) {
       hasInitializedRef.current = true;
+      console.log('🔍 Debug Hook - Chamando loadCheckinData...');
       loadCheckinData();
     }
   }, [user]);
@@ -506,8 +597,10 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
     // Estados de controle
     canCheckinToday,
     hasCompletedFirstCycle,
+    hasUserRecord,
+    hasAnyCheckin,
+    isFirstCompletion,
     showCompletionModal,
-    showTrackingModal,
     
     // Informações de tempo
     nextCheckinTime,
@@ -517,7 +610,7 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
     // Ações
     performCheckin,
     setShowCompletionModal,
-    setShowTrackingModal,
-    resetCycle
+    resetCycle,
+    markTooltipAsSeen
   };
 };

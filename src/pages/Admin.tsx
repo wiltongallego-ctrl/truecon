@@ -353,7 +353,9 @@ const Admin = () => {
     // Limpar localStorage de tooltips para todos os usuários
     const keys = Object.keys(localStorage);
     keys.forEach(key => {
-      if (key.startsWith('hasShownPhase1Tooltip_') || key.startsWith('hasShownPhase2Tooltip_')) {
+      if (key.startsWith('hasShownPhase1Tooltip_') || 
+          key.startsWith('hasShownPhase2Tooltip_') ||
+          key.startsWith('hasShownPhase1CompletionModal_')) {
         localStorage.removeItem(key);
       }
     });
@@ -376,6 +378,7 @@ const Admin = () => {
     // Limpar localStorage de tooltips para este usuário específico
     localStorage.removeItem(`hasShownPhase1Tooltip_${userId}`);
     localStorage.removeItem(`hasShownPhase2Tooltip_${userId}`);
+    localStorage.removeItem(`hasShownPhase1CompletionModal_${userId}`);
 
     toast.success("Fases do usuário zeradas!");
   };
@@ -408,7 +411,10 @@ const Admin = () => {
       // Limpar localStorage de tooltips para todos os usuários
       const keys = Object.keys(localStorage);
       keys.forEach(key => {
-        if (key.startsWith('hasShownPhase1Tooltip_') || key.startsWith('hasShownPhase2Tooltip_')) {
+        if (key.startsWith('hasShownPhase1Tooltip_') || 
+            key.startsWith('hasShownPhase2Tooltip_') ||
+            key.startsWith('hasShownPhase1CompletionModal_') ||
+            key.startsWith('phase1_is_first_')) {
           localStorage.removeItem(key);
         }
       });

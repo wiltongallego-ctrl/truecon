@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import BottomNavigation from "../components/ui/BottomNavigation";
+import { usePhase1Checkin } from "@/hooks/usePhase1Checkin";
 import { Avatar } from "@/components/ui/avatar";
 import { getNavigationDirection, applyPageTransition } from "@/lib/pageTransitions";
 
@@ -15,10 +16,14 @@ interface RankingUser {
 const Ranking = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { hasCompletedFirstCycle, canCheckinToday, hasUserRecord, hasAnyCheckin } = usePhase1Checkin();
+  
   const [topThree, setTopThree] = useState<RankingUser[]>([]);
   const [otherUsers, setOtherUsers] = useState<RankingUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [hasCompletedPhase1, setHasCompletedPhase1] = useState<boolean>(false);
+  const [isPhase1Active, setIsPhase1Active] = useState<boolean>(false);
 
   const navigateWithTransition = (targetRoute: string) => {
     const direction = getNavigationDirection(targetRoute, location.pathname);
@@ -44,6 +49,36 @@ const Ranking = () => {
       return;
     }
     setCurrentUserId(user.id);
+    // Carregar conclusão da Fase 1 para garantir visibilidade do botão no Ranking
+    await fetchPhase1Completion(user.id);
+  };
+
+  const fetchPhase1Completion = async (userId: string) => {
+    try {
+      const { data: phase1Data } = await supabase
+        .from("phases")
+        .select("id, is_active")
+        .eq("phase_number", 1)
+        .maybeSingle();
+
+      if (phase1Data?.id) {
+        setIsPhase1Active(phase1Data.is_active);
+        const { data: progress } = await supabase
+          .from("user_phase_progress")
+          .select("completed")
+          .eq("user_id", userId)
+          .eq("phase_id", phase1Data.id)
+          .maybeSingle();
+        setHasCompletedPhase1(!!progress?.completed);
+      } else {
+        setHasCompletedPhase1(false);
+        setIsPhase1Active(false);
+      }
+    } catch (err) {
+      console.warn("Falha ao verificar conclusão da Fase 1:", err);
+      setHasCompletedPhase1(false);
+      setIsPhase1Active(false);
+    }
   };
 
   const fetchRanking = async () => {
@@ -257,7 +292,12 @@ const Ranking = () => {
       </div>
 
       {/* Bottom Navigation */}
-      <BottomNavigation currentPage="ranking" />
+      <BottomNavigation 
+        currentPage="ranking" 
+        showPhase1Button={hasAnyCheckin && isPhase1Active} 
+        canCheckinToday={canCheckinToday}
+        hasCompletedPhase1={hasCompletedFirstCycle || hasCompletedPhase1}
+      />
     </div>
   );
 };
