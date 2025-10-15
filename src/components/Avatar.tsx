@@ -25,15 +25,32 @@ export default function Avatar({
       const { data } = await supabase.auth.getUser();
       const user = data?.user;
 
+      // DEBUG: Log completo dos dados do usuário
+      console.log("🔍 [Avatar Debug] Dados completos do usuário:", {
+        user: user,
+        user_metadata: user?.user_metadata,
+        identities: user?.identities,
+        app_metadata: user?.app_metadata
+      });
+
       // Prioridade para carregar a foto:
       // 1. avatar_url do user_metadata (EntraID)
       // 2. picture do user_metadata (EntraID)
       // 3. picture do identity_data (EntraID)
       // 4. avatar_url do profile (upload manual)
-      const url =
-        user?.user_metadata?.avatar_url ||
-        user?.user_metadata?.picture ||
-        user?.identities?.[0]?.identity_data?.picture;
+      const avatarUrl = user?.user_metadata?.avatar_url;
+      const pictureUrl = user?.user_metadata?.picture;
+      const identityPicture = user?.identities?.[0]?.identity_data?.picture;
+
+      console.log("🖼️ [Avatar Debug] URLs encontradas:", {
+        avatar_url: avatarUrl,
+        picture: pictureUrl,
+        identity_picture: identityPicture
+      });
+
+      const url = avatarUrl || pictureUrl || identityPicture;
+
+      console.log("✅ [Avatar Debug] URL final selecionada:", url);
 
       setAvatar(url);
     };

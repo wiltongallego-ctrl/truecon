@@ -38,13 +38,38 @@ const Auth = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state change:', event, session);
-        setSession(session);
-        setUser(session?.user ?? null);
+        
+        // DEBUG: Log completo dos dados do usuário após login OAuth
         if (session && event === 'SIGNED_IN') {
+          console.log('=== DEBUG OAUTH LOGIN ===');
+          console.log('Evento:', event);
+          console.log('Session completa:', JSON.stringify(session, null, 2));
+          console.log('User completo:', JSON.stringify(session.user, null, 2));
+          console.log('User metadata:', JSON.stringify(session.user.user_metadata, null, 2));
+          console.log('App metadata:', JSON.stringify(session.user.app_metadata, null, 2));
+          console.log('Identities:', JSON.stringify(session.user.identities, null, 2));
+          
+          // Verificar especificamente os campos de avatar
+          console.log('=== CAMPOS DE AVATAR ===');
+          console.log('user_metadata.avatar_url:', session.user.user_metadata?.avatar_url);
+          console.log('user_metadata.picture:', session.user.user_metadata?.picture);
+          
+          if (session.user.identities && session.user.identities.length > 0) {
+            session.user.identities.forEach((identity, index) => {
+              console.log(`Identity ${index}:`, JSON.stringify(identity, null, 2));
+              console.log(`Identity ${index} - identity_data.picture:`, identity.identity_data?.picture);
+              console.log(`Identity ${index} - identity_data.avatar_url:`, identity.identity_data?.avatar_url);
+            });
+          }
+          console.log('========================');
+          
           console.log('Redirecting to home from auth state change');
           // Use replace instead of navigate to avoid history issues
           window.location.href = '/';
         }
+        
+        setSession(session);
+        setUser(session?.user ?? null);
       }
     );
 
