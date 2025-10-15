@@ -7,6 +7,8 @@ import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import DesktopLanding from "@/components/DesktopLanding";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { notificationService } from "@/services/notificationService";
+import UpdateNotification from "@/components/UpdateNotification";
+import { updateStoredVersion } from "@/utils/versionUtils";
 import Auth from "./pages/Auth";
 import Home from "./pages/Home";
 import Ranking from "./pages/Ranking";
@@ -21,6 +23,9 @@ const App = () => {
   const isMobile = useIsMobile();
 
   useEffect(() => {
+    // Atualizar versão armazenada na inicialização
+    updateStoredVersion();
+    
     // Inicializar serviço de notificações
     const initializeNotifications = async () => {
       try {
@@ -64,6 +69,7 @@ const App = () => {
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <UpdateNotification />
       <PWAInstallPrompt />
       <BrowserRouter>
         <Routes>

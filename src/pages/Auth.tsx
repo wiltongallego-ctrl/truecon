@@ -7,6 +7,7 @@ import TrueLogo from '@/components/TrueLogo';
 import AnimatedCharacter from '@/components/AnimatedCharacter';
 import { toast } from 'sonner';
 import { MicrosoftGraphService } from '@/services/microsoftGraphService';
+import { APP_VERSION } from '@/utils/versionUtils';
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -230,6 +231,13 @@ const Auth = () => {
           </svg>
           Login Demo (demouser@truechange.com)
         </Button>
+
+        {/* Rodapé com versão */}
+        <div className="mt-8 pt-4 border-t border-border/50">
+          <p className="text-xs text-muted-foreground text-center">
+            TrueCon v{APP_VERSION}
+          </p>
+        </div>
       </div>
     </div>
   );
