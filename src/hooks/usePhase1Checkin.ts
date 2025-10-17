@@ -56,6 +56,10 @@ export interface UsePhase1CheckinReturn {
   timeUntilNextCheckin: string;
   currentCycleStartDate: Date | null;
   
+  // Datas da fase
+  phaseStartDate: Date | null;
+  phaseEndDate: Date | null;
+  
   // Ações
   performCheckin: () => Promise<boolean>;
   setShowCompletionModal: (show: boolean) => void;
@@ -102,6 +106,10 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
   // XP configurado para a Fase 1 (fallback para 10)
   const [phaseXP, setPhaseXP] = useState<number>(10);
 
+  // Estados para configuração da fase
+  const [phaseStartDate, setPhaseStartDate] = useState<Date | null>(null);
+  const [phaseEndDate, setPhaseEndDate] = useState<Date | null>(null);
+
   // Função para calcular próximo horário de check-in (8h da manhã)
   const calculateNextCheckinTime = (): Date => {
     const now = new Date();
@@ -144,59 +152,144 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
     return today.getHours() >= CHECKIN_RESET_HOUR;
   };
 
-  // Função para gerar os 7 dias do ciclo
-  const generateCheckinDays = (checkins: Phase1CheckinData[], cycleStart: Date): CheckinDay[] => {
+  // Função para verificar se é o dia atual considerando as datas da fase
+  const isToday = (dayIndex: number) => {
+    if (!phaseStartDate || !phaseEndDate) return false;
+    
+    const today = new Date();
+    const currentDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    // Verificar se a data atual está dentro do período da fase
+    const phaseStart = new Date(phaseStartDate.getFullYear(), phaseStartDate.getMonth(), phaseStartDate.getDate());
+    const phaseEnd = new Date(phaseEndDate.getFullYear(), phaseEndDate.getMonth(), phaseEndDate.getDate());
+    
+    if (currentDate < phaseStart || currentDate > phaseEnd) {
+      // Se estamos fora do período da fase, nenhum dia é "hoje"
+      return false;
+    }
+    
+    // Calcular qual dia da fase corresponde à data atual
+    const daysDiff = Math.floor((currentDate.getTime() - phaseStart.getTime()) / (1000 * 60 * 60 * 24));
+    const currentPhaseDay = daysDiff + 1; // Dias da fase começam em 1
+    
+    console.log('🔍 Debug isToday - Data atual:', currentDate);
+    console.log('🔍 Debug isToday - Início da fase:', phaseStart);
+    console.log('🔍 Debug isToday - Fim da fase:', phaseEnd);
+    console.log('🔍 Debug isToday - Dia atual da fase:', currentPhaseDay);
+    console.log('🔍 Debug isToday - Verificando dia:', dayIndex);
+    
+    return currentPhaseDay === dayIndex;
+  };
+
+  // Função para gerar todos os dias da fase desde o início até o final
+  const generateCheckinDays = (checkins: Phase1CheckinData[], cycleStart: Date | null, phaseEnd?: Date | null, phaseStartOverride?: Date | null): CheckinDay[] => {
     console.log('🔍 Debug generateCheckinDays - checkins recebidos:', checkins);
     console.log('🔍 Debug generateCheckinDays - cycleStart:', cycleStart);
+    console.log('🔍 Debug generateCheckinDays - phaseStartDate:', phaseStartDate);
+    console.log('🔍 Debug generateCheckinDays - phaseStartOverride:', phaseStartOverride);
+    console.log('🔍 Debug generateCheckinDays - phaseEndDate:', phaseEndDate);
+    console.log('🔍 Debug generateCheckinDays - phaseEnd param:', phaseEnd);
+    
+    // Verificar se temos as datas necessárias
+    const effectivePhaseStart = phaseStartOverride || phaseStartDate;
+    if (!cycleStart || !effectivePhaseStart) {
+      console.warn('🔍 Debug generateCheckinDays - Datas não disponíveis, retornando array vazio');
+      return [];
+    }
     
     const days: CheckinDay[] = [];
     const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
     
-    for (let i = 1; i <= CYCLE_DAYS; i++) {
-      const dayDate = new Date(cycleStart);
-      dayDate.setDate(cycleStart.getDate() + (i - 1));
+    // Usar sempre as datas configuradas da fase se disponíveis, senão usar o ciclo do usuário
+    const effectiveStartDate = effectivePhaseStart;
+    const effectiveEndDate = phaseEnd || phaseEndDate || new Date(cycleStart.getTime() + (CYCLE_DAYS - 1) * 24 * 60 * 60 * 1000);
+    
+    console.log('🔍 Debug generateCheckinDays - effectiveStartDate:', effectiveStartDate);
+    console.log('🔍 Debug generateCheckinDays - effectiveEndDate:', effectiveEndDate);
+    
+    // Calcular todos os dias da fase (do início ao fim, independente de hoje)
+    const totalPhaseDays = Math.floor((effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    const totalDays = Math.min(totalPhaseDays, CYCLE_DAYS);
+    
+    console.log('🔍 Debug generateCheckinDays - totalPhaseDays:', totalPhaseDays);
+    console.log('🔍 Debug generateCheckinDays - totalDays calculados:', totalDays);
+    
+    for (let i = 1; i <= totalDays; i++) {
+      const dayDate = new Date(effectiveStartDate);
+      dayDate.setDate(effectiveStartDate.getDate() + (i - 1));
       
       const dayStr = dayDate.toISOString().split('T')[0];
-      const todayStr = today.toISOString().split('T')[0];
       
-      const isCompleted = checkins.some(c => c.day_number === i);
-      const isToday = dayStr === todayStr;
+      // Verificar se há check-in para esta data específica (não por day_number, mas por data)
+      const isCompleted = checkins.some(c => {
+        const checkinDate = new Date(c.checkin_date).toISOString().split('T')[0];
+        return checkinDate === dayStr;
+      });
+      
+      // Usar a função isToday atualizada
+      const isTodayValue = isToday(i);
       
       console.log(`🔍 Debug Dia ${i}:`, {
         dayStr,
         isCompleted,
-        isToday,
-        checkinsForThisDay: checkins.filter(c => c.day_number === i)
+        isToday: isTodayValue,
+        todayStr,
+        dayDate: dayDate.toISOString().split('T')[0],
+        checkinsForThisDay: checkins.filter(c => {
+          const checkinDate = new Date(c.checkin_date).toISOString().split('T')[0];
+          return checkinDate === dayStr;
+        })
       });
       
       // Disponível se: é hoje E já passou das 8h E não foi completado
-      const isAvailable = isToday && today.getHours() >= CHECKIN_RESET_HOUR && !isCompleted;
+      const isAvailable = isTodayValue && today.getHours() >= CHECKIN_RESET_HOUR && !isCompleted;
       
-      // Dia perdido se: a data já passou (comparando apenas datas) E não foi completado E não é hoje
+      // Dia perdido se: a data já passou E não foi completado E não é hoje E está dentro do período da fase
       const dayDateOnly = new Date(dayStr + 'T00:00:00');
       const todayDateOnly = new Date(todayStr + 'T00:00:00');
-      const isMissed = dayDateOnly < todayDateOnly && !isCompleted && !isToday;
+      const currentDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const phaseStart = new Date(effectiveStartDate.getFullYear(), effectiveStartDate.getMonth(), effectiveStartDate.getDate());
+      const phaseEnd = new Date(effectiveEndDate.getFullYear(), effectiveEndDate.getMonth(), effectiveEndDate.getDate());
       
-      days.push({
-        day: i,
-        date: dayDate,
-        isCompleted,
-        isAvailable,
-        isToday,
-        isMissed
-      });
+      // Verificar se estamos dentro do período da fase para determinar se é perdido
+      const isWithinPhase = currentDate >= phaseStart && currentDate <= phaseEnd;
+      const isMissed = dayDateOnly < todayDateOnly && !isCompleted && !isTodayValue && isWithinPhase;
+      
+      // Se estamos após o período da fase, marcar dias não completados como perdidos
+      if (currentDate > phaseEnd && !isCompleted) {
+        days.push({
+          day: i,
+          date: dayDate,
+          isCompleted,
+          isAvailable: false,
+          isToday: false,
+          isMissed: true
+        });
+      } else {
+        days.push({
+          day: i,
+          date: dayDate,
+          isCompleted,
+          isAvailable,
+          isToday: isTodayValue,
+          isMissed
+        });
+      }
     }
     
+    console.log('🔍 Debug generateCheckinDays - dias gerados:', days);
     return days;
   };
 
   // Normaliza os registros agregados da tabela para a estrutura usada internamente
-  const normalizeAggregatedCheckins = (row: Phase1AggregatedRow | null, userId: string, cycleStart: Date): Phase1CheckinData[] => {
-    if (!row) return [];
+  const normalizeAggregatedCheckins = (row: Phase1AggregatedRow | null, userId: string, cycleStart: Date | null): Phase1CheckinData[] => {
+    if (!row || !cycleStart) return [];
     const rawDays = Array.isArray(row.checkin_days) ? row.checkin_days : [];
     const startMs = cycleStart.getTime();
 
     console.log('🔍 Debug normalizeAggregatedCheckins - rawDays:', rawDays);
+    console.log('🔍 Debug normalizeAggregatedCheckins - cycleStart:', cycleStart);
 
     const normalized = rawDays.map((entry: any) => {
       const dateStr: string | undefined =
@@ -221,6 +314,49 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
     return normalized;
   };
 
+  // Função para calcular datas da fase baseada na data atual
+  const calculatePhaseDates = (existingCheckins?: Phase1CheckinData[]) => {
+    // Se já existem check-ins, usar a data do ciclo do primeiro check-in
+    if (existingCheckins && existingCheckins.length > 0) {
+      const firstCheckin = existingCheckins[0];
+      if (firstCheckin.cycle_start_date) {
+        const phaseStart = new Date(firstCheckin.cycle_start_date + 'T00:00:00');
+        const phaseEnd = new Date(phaseStart);
+        phaseEnd.setDate(phaseStart.getDate() + 6); // 7 dias de duração
+        phaseEnd.setHours(23, 59, 59, 999);
+        
+        console.log('🔍 Debug calculatePhaseDates - Usando datas do primeiro check-in');
+        console.log('🔍 Debug calculatePhaseDates - Phase start (persistido):', phaseStart);
+        console.log('🔍 Debug calculatePhaseDates - Phase end (persistido):', phaseEnd);
+        
+        return { phaseStart, phaseEnd };
+      }
+    }
+    
+    // Caso contrário, calcular dinamicamente baseado na data atual
+    const today = new Date();
+    const currentDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    // Configuração dinâmica: Fase 1 sempre começa na segunda-feira da semana atual
+    // e dura 7 dias (uma semana completa)
+    const dayOfWeek = currentDate.getDay(); // 0 = domingo, 1 = segunda, etc.
+    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Ajustar para segunda-feira
+    
+    const phaseStart = new Date(currentDate);
+    phaseStart.setDate(currentDate.getDate() + daysToMonday);
+    phaseStart.setHours(0, 0, 0, 0);
+    
+    const phaseEnd = new Date(phaseStart);
+    phaseEnd.setDate(phaseStart.getDate() + 6); // 7 dias de duração
+    phaseEnd.setHours(23, 59, 59, 999);
+    
+    console.log('🔍 Debug calculatePhaseDates - Calculando datas dinamicamente');
+    console.log('🔍 Debug calculatePhaseDates - Phase start (dinâmico):', phaseStart);
+    console.log('🔍 Debug calculatePhaseDates - Phase end (dinâmico):', phaseEnd);
+    
+    return { phaseStart, phaseEnd };
+  };
+
   // Função para carregar dados do check-in
   const loadCheckinData = async () => {
     if (!user) return;
@@ -229,39 +365,76 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
       setIsLoading(true);
       setError(null);
 
-      // Buscar XP configurado para a Fase 1 (usa 10 como fallback quando xp_reward for 0)
-      try {
-        const { data: phase1Data } = await supabase
-          .from('phases')
-          .select('xp_reward')
-          .eq('phase_number', 1)
-          .maybeSingle();
-        if (phase1Data) {
-          setPhaseXP(phase1Data.xp_reward || 10);
-        }
-      } catch (xpErr) {
-        console.warn('Falha ao carregar xp da Fase 1, usando fallback 10:', xpErr);
-        setPhaseXP(10);
-      }
-
-      // Buscar ou inicializar o registro agregado do usuário
+      // Buscar ou inicializar o registro agregado do usuário primeiro
       console.log('🔍 Debug Hook - Buscando dados do usuário:', user.id);
       const { data: existingRow, error: rowError } = await supabase
         .from('user_phase1_checkins')
         .select('*')
         .eq('user_id', user.id)
-        .maybeSingle<Phase1AggregatedRow>();
+        .maybeSingle();
 
-      if (rowError) throw rowError;
-      console.log('🔍 Debug Hook - Dados encontrados:', existingRow);
-      console.log('🔍 Debug Hook - Array checkin_days:', existingRow?.checkin_days);
+      if (rowError && rowError.code !== 'PGRST116') {
+        console.error('🔍 Debug Hook - Erro ao buscar dados:', rowError);
+        throw rowError;
+      }
+
+      // Primeiro tentar buscar configuração do banco (prioridade)
+      let finalPhaseStart: Date;
+      let finalPhaseEnd: Date;
+      let finalPhaseXP = 10;
+      
+      try {
+        const { data: phase1Data } = await supabase
+          .from('phases')
+          .select('xp_reward, start_date, end_date, is_active')
+          .eq('phase_number', 1)
+          .maybeSingle();
+        
+        if (phase1Data && phase1Data.is_active && phase1Data.start_date && phase1Data.end_date) {
+          // Se existe configuração ativa no banco com datas, usar essas datas (PRIORIDADE)
+          finalPhaseStart = new Date(phase1Data.start_date + 'T00:00:00');
+          finalPhaseEnd = new Date(phase1Data.end_date + 'T23:59:59');
+          finalPhaseXP = phase1Data.xp_reward || 10;
+          console.log('🔍 Debug Hook - Usando configuração do banco (PRIORIDADE)');
+          console.log('🔍 Debug Hook - Phase start date do banco:', finalPhaseStart);
+          console.log('🔍 Debug Hook - Phase end date do banco:', finalPhaseEnd);
+        } else {
+          // Fallback para cálculo dinâmico apenas se não houver configuração no banco
+          const { phaseStart, phaseEnd } = calculatePhaseDates([]);
+          finalPhaseStart = phaseStart;
+          finalPhaseEnd = phaseEnd;
+          console.log('🔍 Debug Hook - Usando configuração calculada (fallback)');
+          console.log('🔍 Debug Hook - Phase start date calculado:', finalPhaseStart);
+          console.log('🔍 Debug Hook - Phase end date calculado:', finalPhaseEnd);
+        }
+      } catch (dbError) {
+        console.error('🔍 Debug Hook - Erro ao buscar configuração da Fase 1 no banco:', dbError);
+        // Fallback para cálculo dinâmico em caso de erro
+        const { phaseStart, phaseEnd } = calculatePhaseDates([]);
+        finalPhaseStart = phaseStart;
+        finalPhaseEnd = phaseEnd;
+        console.log('🔍 Debug Hook - Usando configuração calculada (erro no banco)');
+      }
+      
+      // Definir os estados com as datas finais
+      setPhaseStartDate(finalPhaseStart);
+      setPhaseEndDate(finalPhaseEnd);
+      setPhaseXP(finalPhaseXP);
+      
+      console.log('🔍 Debug Hook - Configuração FINAL da Fase 1');
+      console.log('🔍 Debug Hook - Data atual:', new Date());
+      console.log('🔍 Debug Hook - Phase start date FINAL:', finalPhaseStart);
+      console.log('🔍 Debug Hook - Phase end date FINAL:', finalPhaseEnd);
+
+      // Normalizar check-ins existentes com as datas FINAIS corretas da fase
+      const normalizedCheckins = existingRow ? normalizeAggregatedCheckins(existingRow, user.id, finalPhaseStart) : [];
 
       let cycleStart: Date;
       let row: Phase1AggregatedRow | null = existingRow ?? null;
 
       if (!row) {
-        // Primeiro ciclo - inicia hoje às 8h
-        const start = new Date();
+        // Primeiro ciclo - usar a data de início da fase FINAL
+        const start = new Date(finalPhaseStart);
         start.setHours(CHECKIN_RESET_HOUR, 0, 0, 0);
 
         // Tentar criar registro inicial de forma idempotente
@@ -334,65 +507,54 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
 
       setCurrentCycleStartDate(cycleStart);
 
-      // Normalizar check-ins do ciclo atual
-      const currentCycleCheckins = normalizeAggregatedCheckins(row, user.id, cycleStart);
+      // Usar os check-ins normalizados já calculados
+      const checkinData = normalizedCheckins;
+      console.log('🔍 Debug Hook - Check-ins normalizados:', checkinData);
 
-      // Gerar dias do ciclo
-      const days = generateCheckinDays(currentCycleCheckins, cycleStart);
+      // Gerar dias do check-in usando as datas FINAIS da fase
+      const days = generateCheckinDays(checkinData, cycleStart, finalPhaseEnd, finalPhaseStart);
       setCheckinDays(days);
 
+      console.log('🔍 Debug Hook - Dias gerados:', days);
+
       // Calcular estatísticas
-      const completed = currentCycleCheckins.length;
+      const completed = checkinData.length;
       setCompletedDays(completed);
       setCurrentDay(Math.min(completed + 1, CYCLE_DAYS));
 
       // Verificar se pode fazer check-in hoje
-      const canCheckin = checkCanCheckinToday(currentCycleCheckins);
+      const canCheckin = checkCanCheckinToday(checkinData);
       setCanCheckinToday(canCheckin);
 
       // Verificar se já completou algum ciclo
-      // Se tem 7 check-ins no ciclo atual OU já marcou has_completed_first_time, considera como completado
-      const hasCompleted = !!row?.has_completed_first_time || completed >= CYCLE_DAYS;
+      const hasCompleted = !!row?.has_completed_first_time;
       setHasCompletedFirstCycle(hasCompleted);
 
-      // Verificar se existe registro do usuário (para controlar exibição do botão)
+      // Verificar se existe registro do usuário
       setHasUserRecord(!!row);
 
       // Verificar se já fez pelo menos um check-in
       const hasAnyCheckinValue = !!row && row.checkin_days && row.checkin_days.length > 0;
       setHasAnyCheckin(hasAnyCheckinValue);
 
-      // Verificar se é primeira conclusão (baseado no campo is_first + localStorage)
-      console.log('🔍 Debug Hook - row?.is_first:', row?.is_first);
-      console.log('🔍 Debug Hook - !!row?.is_first:', !!row?.is_first);
-      
-      // Chave do localStorage específica para o usuário
+      // Verificar se é primeira conclusão
       const localStorageKey = `phase1_is_first_${user?.id}`;
       const localStorageValue = localStorage.getItem(localStorageKey);
       
-      console.log('🔍 Debug Hook - localStorage value:', localStorageValue);
-      
-      // Se localStorage diz que não é mais first, respeitar isso
       if (localStorageValue === 'false') {
-        console.log('🔍 Debug Hook - localStorage indica que não é mais first, definindo como false');
         setIsFirstCompletion(false);
       } else {
-        // Caso contrário, usar valor do banco
         const isFirstValue = !!row?.is_first;
-        console.log('🔍 Debug Hook - Definindo isFirstCompletion como:', isFirstValue);
         setIsFirstCompletion(isFirstValue);
-        
-        // Sincronizar localStorage com banco
         localStorage.setItem(localStorageKey, isFirstValue.toString());
       }
 
       // Calcular próximo check-in
       const nextTime = calculateNextCheckinTime();
       setNextCheckinTime(nextTime);
-
     } catch (err) {
-      console.error('Erro ao carregar dados de check-in:', err);
-      setError('Erro ao carregar dados de check-in');
+      console.error('🔍 Debug Hook - Erro ao carregar dados:', err);
+      setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
       setIsLoading(false);
     }
@@ -400,13 +562,24 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
 
   // Função para realizar check-in
   const performCheckin = async (): Promise<boolean> => {
-    if (!user || !canCheckinToday || !currentCycleStartDate) return false;
+    if (!user || !canCheckinToday) return false;
 
     try {
       setIsLoading(true);
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
 
-      const today = new Date();
-      const todayStr = today.toISOString().split('T')[0];
+      // Usar a data de início da fase como cycle_start_date para o primeiro check-in
+      const cycleStartForCheckin = phaseStartDate.toISOString().split('T')[0];
+
+      const newCheckin: Phase1CheckinData = {
+        user_id: user.id,
+        checkin_date: todayStr,
+        day_number: currentDay,
+        cycle_start_date: cycleStartForCheckin
+      };
+
+      console.log('🔍 Debug performCheckin - Novo check-in:', newCheckin);
 
       // Buscar registro atual para atualizar array de check-ins
       const { data: row, error: fetchError } = await supabase
@@ -431,7 +604,7 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
       
       const updates: Partial<Phase1AggregatedRow> = {
         checkin_days: updatedDays,
-        last_checkin_at: today.toISOString()
+        last_checkin_at: now.toISOString()
       } as any;
 
       // Definir has_completed_first_time como true quando completar o ciclo completo (7 dias)
@@ -449,7 +622,7 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
       // Atualizar o perfil com o último check-in
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({ last_checkin_at: today.toISOString() })
+        .update({ last_checkin_at: now.toISOString() })
         .eq('user_id', user.id);
       if (profileError) {
         // Não bloqueia o fluxo de check-in; apenas registra
@@ -578,16 +751,52 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
     }
   };
 
+  // ...existing code...
+
+  // Função para verificar se a fase terminou
+  const isPhaseEnded = (): boolean => {
+    // Se completou 7 check-ins, a fase terminou
+    if (completedDays >= 7) return true;
+    
+    // Se não há data de fim da fase, não pode verificar prazo
+    if (!phaseEndDate) return false;
+    
+    // Verificar se o prazo venceu
+    const now = new Date();
+    const phaseEnd = new Date(phaseEndDate.getFullYear(), phaseEndDate.getMonth(), phaseEndDate.getDate(), 23, 59, 59);
+    const isPastDeadline = now.getTime() > phaseEnd.getTime();
+    
+    // Se passou do prazo, a fase terminou
+    if (isPastDeadline) return true;
+    
+    // Verificar se é o último dia da fase E já fez o check-in do dia 7
+    const isLastDay = now.toDateString() === phaseEnd.toDateString();
+    const hasCompletedDay7 = checkinDays.some(day => day.day === 7 && day.isCompleted);
+    
+    // Se é o último dia E completou o 7º check-in, a fase terminou
+    if (isLastDay && hasCompletedDay7) return true;
+    
+    return false;
+  };
+
   // Atualizar countdown a cada segundo
   useEffect(() => {
     if (!nextCheckinTime) return;
     
+    // Se a fase terminou, não atualizar o countdown
+    if (isPhaseEnded()) return;
+    
     const interval = setInterval(() => {
+      // Verificar novamente se a fase terminou antes de atualizar
+      if (isPhaseEnded()) {
+        clearInterval(interval);
+        return;
+      }
       setTimeUntilNextCheckin(formatTimeUntilNext(nextCheckinTime));
     }, 1000);
     
     return () => clearInterval(interval);
-  }, [nextCheckinTime]);
+  }, [nextCheckinTime, completedDays, checkinDays, phaseEndDate]);
 
   // Carregar dados iniciais
   useEffect(() => {
@@ -630,6 +839,10 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
     nextCheckinTime,
     timeUntilNextCheckin,
     currentCycleStartDate,
+    
+    // Datas da fase
+    phaseStartDate,
+    phaseEndDate,
     
     // Ações
     performCheckin,

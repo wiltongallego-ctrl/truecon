@@ -7,7 +7,8 @@ interface Phase1TimelineProps {
 }
 
 const Phase1Timeline: React.FC<Phase1TimelineProps> = ({ checkinDays, completedDays }) => {
-  const progressPercentage = (completedDays / 7) * 100;
+  const totalDays = checkinDays.length;
+  const progressPercentage = totalDays > 0 ? (completedDays / totalDays) * 100 : 0;
 
   const getDayIcon = (day: CheckinDay) => {
     if (day.isCompleted) {
@@ -22,9 +23,9 @@ const Phase1Timeline: React.FC<Phase1TimelineProps> = ({ checkinDays, completedD
     
     if (day.isMissed) {
       return (
-        <div className="w-8 h-8 bg-gradient-to-r from-red-400 to-red-600 rounded-full flex items-center justify-center shadow-lg">
+        <div className="w-8 h-8 bg-gradient-to-r from-red-500 to-red-700 rounded-full flex items-center justify-center shadow-lg border-2 border-red-300">
           <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </div>
       );
@@ -89,7 +90,7 @@ const Phase1Timeline: React.FC<Phase1TimelineProps> = ({ checkinDays, completedD
       <div className="mb-6">
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm font-medium text-gray-700">Progresso do Ciclo</span>
-          <span className="text-sm font-bold text-blue-600">{completedDays}/7 dias</span>
+          <span className="text-sm font-bold text-blue-600">{completedDays}/{totalDays} dias</span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
           <div 
@@ -152,12 +153,12 @@ const Phase1Timeline: React.FC<Phase1TimelineProps> = ({ checkinDays, completedD
             <span className="text-gray-600">Concluído</span>
           </div>
           <div className="flex items-center space-x-2">
-            <div className="w-4 h-4 bg-gradient-to-r from-red-400 to-red-600 rounded-full flex items-center justify-center">
+            <div className="w-4 h-4 bg-gradient-to-r from-red-500 to-red-700 rounded-full flex items-center justify-center border border-red-300">
               <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
-            <span className="text-gray-600">Perdido</span>
+            <span className="text-gray-600 font-medium">Perdido</span>
           </div>
           <div className="flex items-center space-x-2">
             <div className="w-4 h-4 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full flex items-center justify-center">

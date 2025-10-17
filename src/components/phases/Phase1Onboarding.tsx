@@ -23,6 +23,8 @@ const Phase1Onboarding = () => {
     nextCheckinTime,
     timeUntilNextCheckin,
     currentCycleStartDate,
+    phaseStartDate,
+    phaseEndDate,
     performCheckin,
     setShowCompletionModal,
     resetCycle
@@ -37,16 +39,50 @@ const Phase1Onboarding = () => {
     }
   };
 
+  // Verificar se a fase terminou (prazo vencido ou 7 check-ins completos)
+  const isPhaseEnded = () => {
+    // Se completou 7 check-ins, a fase terminou
+    if (completedDays >= 7) return true;
+    
+    // Se não há data de fim da fase, não pode verificar prazo
+    if (!phaseEndDate) return false;
+    
+    // Verificar se o prazo venceu
+    const now = new Date();
+    const phaseEnd = new Date(phaseEndDate.getFullYear(), phaseEndDate.getMonth(), phaseEndDate.getDate(), 23, 59, 59);
+    const isPastDeadline = now.getTime() > phaseEnd.getTime();
+    
+    // Se passou do prazo, a fase terminou
+    if (isPastDeadline) return true;
+    
+    // Verificar se é o último dia da fase E já fez o check-in do dia 7
+    const isLastDay = now.toDateString() === phaseEnd.toDateString();
+    const hasCompletedDay7 = checkinDays.some(day => day.day === 7 && day.isCompleted);
+    
+    // Se é o último dia E completou o 7º check-in, a fase terminou
+    if (isLastDay && hasCompletedDay7) return true;
+    
+    return false;
+  };
+
   const getCheckinButtonText = () => {
-    if (completedDays === 7) return "Ciclo Completo! 🎉";
+    if (isPhaseEnded()) {
+      return completedDays >= 7 ? "Ciclo Completo! 🎉" : "Fase Encerrada";
+    }
     if (canCheckinToday) return `Fazer Check-in - Dia ${currentDay}`;
     if (nextCheckinTime) return `Próximo check-in: ${timeUntilNextCheckin}`;
     return "Check-in não disponível";
   };
 
   const getCheckinButtonStyle = () => {
-    if (completedDays === 7) {
-      return "w-full bg-gradient-to-r from-primary to-primary/90 text-white font-semibold py-4 px-6 rounded-lg shadow-lg";
+    if (isPhaseEnded()) {
+      if (completedDays >= 7) {
+        // Fase completa com sucesso - verde
+        return "w-full bg-gradient-to-r from-green-500 to-green-600 text-white font-semibold py-4 px-6 rounded-lg shadow-lg cursor-not-allowed";
+      } else {
+        // Fase encerrada sem completar - cinza
+        return "w-full bg-gray-400 text-gray-600 font-semibold py-4 px-6 rounded-lg cursor-not-allowed";
+      }
     }
     if (canCheckinToday) {
       return "w-full bg-gradient-to-r from-primary to-primary/90 text-white font-semibold py-4 px-6 rounded-lg hover:from-primary hover:to-primary/80 transition-all duration-200 transform hover:scale-105 shadow-lg";
@@ -131,6 +167,36 @@ const Phase1Onboarding = () => {
           <p className="text-gray-700 mb-4">
             Complete 7 check-ins diários para estabelecer o hábito e desbloquear novas funcionalidades.
           </p>
+          
+          {/* Informações de configuração da fase */}
+          {(phaseStartDate || phaseEndDate) && (
+            <div className="mb-4 p-3 bg-white/70 rounded-lg border border-blue-100">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-sm text-blue-800">
+                {phaseStartDate && (
+                  <div className="flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span className="font-medium">Início:</span>
+                    <span>{phaseStartDate.toLocaleDateString('pt-BR')}</span>
+                  </div>
+                )}
+                {phaseEndDate && (
+                  <>
+                    {phaseStartDate && <span className="hidden sm:inline text-blue-400">•</span>}
+                    <div className="flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="font-medium">Término:</span>
+                      <span>{phaseEndDate.toLocaleDateString('pt-BR')}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+          
           <div className="flex items-center space-x-2 text-sm text-blue-700">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -151,14 +217,14 @@ const Phase1Onboarding = () => {
         <div className="mb-8">
           <button
             onClick={handleCheckin}
-            disabled={!canCheckinToday}
+            disabled={!canCheckinToday || isPhaseEnded()}
             className={getCheckinButtonStyle()}
           >
             {getCheckinButtonText()}
           </button>
           
           {/* Informação adicional */}
-          {!canCheckinToday && nextCheckinTime && (
+          {!canCheckinToday && nextCheckinTime && !isPhaseEnded() && (
             <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <div className="flex items-center space-x-2">
                 <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -235,6 +301,10 @@ const Phase1Onboarding = () => {
       <Phase1CompletionModal
         isOpen={showCompletionModal}
         onClose={() => setShowCompletionModal(false)}
+        completedDays={completedDays}
+        totalDays={7}
+        missedDays={checkinDays.filter(day => day.isMissed).length}
+        isLastDay={false} // No onboarding, sempre mostrar modal de evidência
       />
 
       <BottomNavigation 

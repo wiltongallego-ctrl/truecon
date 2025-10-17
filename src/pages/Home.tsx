@@ -46,7 +46,17 @@ const Home = () => {
   const [hasCompletedPhase2, setHasCompletedPhase2] = useState(false);
   
   // Usar o hook usePhase1Checkin para controlar a lógica da Fase 1
-  const { hasCompletedFirstCycle, hasUserRecord, hasAnyCheckin, isFirstCompletion, markTooltipAsSeen } = usePhase1Checkin();
+  const { 
+    hasCompletedFirstCycle, 
+    hasUserRecord, 
+    hasAnyCheckin, 
+    isFirstCompletion, 
+    markTooltipAsSeen, 
+    completedDays,
+    checkinDays,
+    phaseStartDate,
+    phaseEndDate
+  } = usePhase1Checkin();
   
   const [hasEverCheckedIn, setHasEverCheckedIn] = useState(false);
   const [canCheckInToday, setCanCheckInToday] = useState(true);
@@ -316,26 +326,110 @@ const Home = () => {
 
   // (Removido) useEffect para tooltip da Fase 1
 
+  // ✅ Modal de evidência: aparece no primeiro check-in (exceto no último dia)
   useEffect(() => {
-    console.log("🟡 Verificando modal da fase 1", {
+    console.log("🟡 Verificando modal de evidência da fase 1", {
       isFirstCompletion,
-      hasCompletedFirstCycle,
       hasAnyCheckin,
+      showPhase1Modal,
+      phaseStartDate,
+      phaseEndDate
+    });
+
+    if (showPhase1Modal || !phaseStartDate || !phaseEndDate) return;
+
+    // ✅ Regra: abre no primeiro check-in concluído (modal de evidência)
+    if (isFirstCompletion && hasAnyCheckin) {
+      // Verificar se hoje NÃO é o último dia da fase
+      const today = new Date();
+      const currentDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const phaseEnd = new Date(phaseEndDate.getFullYear(), phaseEndDate.getMonth(), phaseEndDate.getDate());
+      const isLastDay = currentDate.getTime() === phaseEnd.getTime();
+      
+      // Verificar se já foi exibido o modal de evidência para este usuário
+      const hasShownEvidenceModal = localStorage.getItem(`hasShownPhase1EvidenceModal_${user?.id}`);
+      
+      if (hasShownEvidenceModal) {
+        console.log("🟡 Modal de evidência já foi exibido para este usuário");
+        return;
+      }
+      
+      // Só mostrar modal de evidência se NÃO for o último dia
+      if (!isLastDay) {
+        console.log("✅ Abrindo modal de evidência da Fase 1 agora...");
+        localStorage.setItem(`hasShownPhase1EvidenceModal_${user?.id}`, 'true');
+        setTimeout(() => setShowPhase1Modal(true), 500);
+      }
+    }
+  }, [isFirstCompletion, hasAnyCheckin, showPhase1Modal, phaseStartDate, phaseEndDate, user?.id]);
+
+  // ✅ Modal de conclusão: aparece apenas no último dia da fase após check-in
+  useEffect(() => {
+    console.log("🟡 Verificando modal de conclusão da fase 1", {
+      phaseStartDate,
+      phaseEndDate,
+      checkinDays,
       showPhase1Modal
     });
 
-    if (showPhase1Modal) return;
+    if (showPhase1Modal || !phaseStartDate || !phaseEndDate || !checkinDays.length) return;
 
-    // ✅ Regra corrigida: abre no primeiro check-in concluído
-    if (isFirstCompletion && hasAnyCheckin) {
-      console.log("✅ Abrindo modal da Fase 1 agora...");
-      setTimeout(() => setShowPhase1Modal(true), 500);
+    const today = new Date();
+    const currentDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const phaseEnd = new Date(phaseEndDate.getFullYear(), phaseEndDate.getMonth(), phaseEndDate.getDate());
+    
+    // Verificar se hoje é o último dia da fase OU se o prazo já venceu
+    const isLastDay = currentDate.getTime() === phaseEnd.getTime();
+    const isPastDeadline = currentDate.getTime() > phaseEnd.getTime();
+    
+    console.log("🟡 Debug último dia:", {
+      currentDate: currentDate.toISOString().split('T')[0],
+      phaseEnd: phaseEnd.toISOString().split('T')[0],
+      isLastDay,
+      isPastDeadline
+    });
+
+    // Verificar se já foi exibido o modal de conclusão para este usuário
+    const hasShownCompletionModal = localStorage.getItem(`hasShownPhase1CompletionModal_${user?.id}`);
+    
+    if (hasShownCompletionModal) {
+      console.log("🟡 Modal de conclusão já foi exibido para este usuário");
+      return;
     }
-  }, [isFirstCompletion, hasAnyCheckin, showPhase1Modal]);
+
+    if (isLastDay || isPastDeadline) {
+      // No último dia: verificar se houve check-in hoje
+      if (isLastDay) {
+        const todayStr = today.toISOString().split('T')[0];
+        const todayCheckinDay = checkinDays.find(day => {
+          const dayStr = day.date.toISOString().split('T')[0];
+          return dayStr === todayStr && day.isCompleted;
+        });
+        
+        console.log("🟡 Debug check-in hoje:", {
+          todayStr,
+          todayCheckinDay,
+          hasCheckinToday: !!todayCheckinDay
+        });
+
+        // Só exibir modal se houve check-in hoje (no último dia)
+        if (todayCheckinDay) {
+          console.log("✅ Check-in realizado no último dia! Abrindo modal de conclusão...");
+          localStorage.setItem(`hasShownPhase1CompletionModal_${user?.id}`, 'true');
+          setTimeout(() => setShowPhase1Modal(true), 500);
+        }
+      }
+      
+      // Após o prazo: exibir modal independente de check-in
+      if (isPastDeadline) {
+        console.log("✅ Prazo vencido! Abrindo modal de conclusão...");
+        localStorage.setItem(`hasShownPhase1CompletionModal_${user?.id}`, 'true');
+        setTimeout(() => setShowPhase1Modal(true), 500);
+      }
+    }
+  }, [phaseStartDate, phaseEndDate, checkinDays, showPhase1Modal, user?.id]);
 
 
-
-  // (Removido) useEffect para tooltip da Fase 1 às 8h
 
   if (loading) {
     return (
@@ -596,10 +690,18 @@ const Home = () => {
         isOpen={showPhase1Modal}
         onClose={() => {
           setShowPhase1Modal(false);
-          if (user && markTooltipAsSeen) {
-            markTooltipAsSeen();
-          }
+          markTooltipAsSeen();
         }}
+        completedDays={completedDays}
+        totalDays={7}
+        missedDays={checkinDays.filter(day => day.isMissed).length}
+        isLastDay={(() => {
+          if (!phaseStartDate || !phaseEndDate) return false;
+          const today = new Date();
+          const currentDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+          const phaseEnd = new Date(phaseEndDate.getFullYear(), phaseEndDate.getMonth(), phaseEndDate.getDate());
+          return currentDate.getTime() === phaseEnd.getTime();
+        })()}
       />
 
       <PhaseTooltipModal
