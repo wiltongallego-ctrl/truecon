@@ -6,7 +6,7 @@ import { toast } from "@/lib/sweetAlert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, Users, Trash2, RotateCcw, UserX, AlertTriangle, Shield, UserCheck, Search, ChevronLeft, ChevronRight, Edit, Save, X, Calendar, Clock } from "lucide-react";
+import { ArrowLeft, Users, Trash2, RotateCcw, UserX, AlertTriangle, Shield, UserCheck, Search, ChevronLeft, ChevronRight, Edit, Save, X, Calendar, Clock, Bug } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { NotificationDebugger } from "@/utils/debugNotifications";
 
 interface Phase {
   id: string;
@@ -486,7 +487,7 @@ const Admin = () => {
 
           <Tabs defaultValue="phases" className="w-full">
             {/* TabsList responsivo */}
-            <TabsList className="grid w-full grid-cols-3 h-auto">
+            <TabsList className="grid w-full grid-cols-4 h-auto">
               <TabsTrigger value="phases" className="text-xs sm:text-sm py-2 sm:py-3">
                 Fases
               </TabsTrigger>
@@ -496,6 +497,10 @@ const Admin = () => {
               <TabsTrigger value="roles" className="text-xs sm:text-sm py-2 sm:py-3">
                 <Shield className="h-4 w-4 mr-1" />
                 Roles
+              </TabsTrigger>
+              <TabsTrigger value="debug" className="text-xs sm:text-sm py-2 sm:py-3">
+                <Bug className="h-4 w-4 mr-1" />
+                Debug
               </TabsTrigger>
             </TabsList>
 
@@ -1044,6 +1049,86 @@ const Admin = () => {
                     </div>
                   </div>
                 )}
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="debug" className="space-y-4 mt-4">
+              <Card className="p-4 sm:p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Bug className="h-5 w-5 text-primary" />
+                  <h2 className="text-lg font-semibold">Debug de Notificações</h2>
+                </div>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Ferramentas para diagnosticar problemas com notificações push, especialmente em dispositivos iOS.
+                </p>
+                
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Button 
+                      onClick={() => NotificationDebugger.checkNotificationStatus()}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      Verificar Status das Notificações
+                    </Button>
+                    
+                    <Button 
+                      onClick={() => NotificationDebugger.testSimpleNotification()}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      Testar Notificação Simples
+                    </Button>
+                    
+                    <Button 
+                      onClick={() => NotificationDebugger.testServiceWorkerNotification()}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      Testar via Service Worker
+                    </Button>
+                    
+                    <Button 
+                      onClick={() => NotificationDebugger.runAllTests()}
+                      className="w-full"
+                    >
+                      Executar Todos os Testes
+                    </Button>
+                  </div>
+                  
+                  <div className="border-t pt-4">
+                    <h3 className="font-medium mb-2">Monitoramento</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <Button 
+                        onClick={() => NotificationDebugger.startVisibilityMonitoring()}
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                      >
+                        Monitorar Visibilidade
+                      </Button>
+                      
+                      <Button 
+                        onClick={() => NotificationDebugger.checkServiceWorkerStatus()}
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                      >
+                        Status do Service Worker
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-muted p-4 rounded-lg text-xs">
+                    <p className="font-medium mb-2">💡 Dicas para Debug:</p>
+                    <ul className="space-y-1 text-muted-foreground">
+                      <li>• Abra o Console do navegador (F12) para ver os logs detalhados</li>
+                      <li>• No iPhone, certifique-se de que o app está instalado como PWA</li>
+                      <li>• Teste com o app em segundo plano para simular condições reais</li>
+                      <li>• Verifique as configurações de notificação do dispositivo</li>
+                    </ul>
+                  </div>
+                </div>
               </Card>
             </TabsContent>
           </Tabs>

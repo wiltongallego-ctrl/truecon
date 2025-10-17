@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { X, Download } from "lucide-react";
+import { X, Download, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import PWAInstallGuide from "./PWAInstallGuide";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -13,6 +14,7 @@ const PWAInstallPrompt = () => {
   const [showPrompt, setShowPrompt] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => {
     // Detectar se é iOS
@@ -81,6 +83,11 @@ const PWAInstallPrompt = () => {
 
   if (!showPrompt || isStandalone) return null;
 
+  // Se o guia estiver sendo exibido, mostrar apenas o guia
+  if (showGuide) {
+    return <PWAInstallGuide onClose={() => setShowGuide(false)} />;
+  }
+
   return (
     <div className="fixed bottom-20 left-4 right-4 z-50 animate-fade-in">
       <Card className="p-4 shadow-lg border-primary/20">
@@ -98,15 +105,27 @@ const PWAInstallPrompt = () => {
               }
             </p>
             
-            {!isIOS && (
+            <div className="flex gap-2">
+              {!isIOS && (
+                <Button 
+                  onClick={handleInstallClick}
+                  size="sm"
+                  className="flex-1"
+                >
+                  Instalar Agora
+                </Button>
+              )}
+              
               <Button 
-                onClick={handleInstallClick}
+                onClick={() => setShowGuide(true)}
                 size="sm"
-                className="w-full"
+                variant="outline"
+                className={isIOS ? "w-full" : "flex-shrink-0"}
               >
-                Instalar Agora
+                <HelpCircle className="w-4 h-4 mr-1" />
+                Ajuda
               </Button>
-            )}
+            </div>
           </div>
 
           <button

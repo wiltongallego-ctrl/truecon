@@ -41,6 +41,12 @@ export class NotificationService {
   // Solicitar permissão para notificações
   public async requestPermission(): Promise<NotificationPermission> {
     try {
+      console.log('[NotificationService] Iniciando solicitação de permissão...');
+      console.log('[NotificationService] iOS:', this.isIOS());
+      console.log('[NotificationService] Safari:', this.isSafari());
+      console.log('[NotificationService] PWA:', this.isPWA());
+      console.log('[NotificationService] Standalone:', window.navigator.standalone);
+      
       // No iOS/Safari, verificar se está em modo PWA antes de solicitar
       if (this.isIOS() && !this.isPWA()) {
         console.warn('[NotificationService] Notificações não são suportadas no Safari fora do modo PWA');
@@ -48,13 +54,14 @@ export class NotificationService {
       }
 
       const permission = await Notification.requestPermission();
-      console.log('[NotificationService] Permissão de notificação:', permission);
-      
-      // No iOS, aguardar um pouco após a permissão para garantir que foi processada
+      console.log('[NotificationService] Permissão obtida:', permission);
+
+      // Para iOS, aguardar um pouco após a permissão ser concedida
       if (this.isIOS() && permission === 'granted') {
+        console.log('[NotificationService] Aguardando processamento da permissão no iOS...');
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
-      
+
       return permission;
     } catch (error) {
       console.error('[NotificationService] Erro ao solicitar permissão:', error);
@@ -123,6 +130,15 @@ export class NotificationService {
 
   // Notificar sobre liberação de fase
   public async notifyPhaseReleased(phaseNumber: number, phaseName: string): Promise<void> {
+    console.log('[NotificationService] === INICIANDO NOTIFICAÇÃO DE FASE ===');
+    console.log('[NotificationService] Fase:', phaseNumber, '-', phaseName);
+    console.log('[NotificationService] Permissão atual:', Notification.permission);
+    console.log('[NotificationService] iOS:', this.isIOS());
+    console.log('[NotificationService] PWA:', this.isPWA());
+    console.log('[NotificationService] Visibilidade:', document.visibilityState);
+    console.log('[NotificationService] Service Worker Controller:', !!navigator.serviceWorker.controller);
+    console.log('[NotificationService] Registration:', !!this.registration);
+    
     const title = `🎉 Nova Fase Liberada!`;
     const options: NotificationOptions = {
       body: `A Fase ${phaseNumber} - ${phaseName} está agora disponível!`,
@@ -149,15 +165,20 @@ export class NotificationService {
 
     // Para iOS, usar método alternativo se o app estiver em primeiro plano
     if (this.isIOS() && document.visibilityState === 'visible') {
+      console.log('[NotificationService] iOS em primeiro plano - usando métodos alternativos');
+      
       // Agendar notificação para quando o app sair de primeiro plano
       setTimeout(() => {
+        console.log('[NotificationService] Verificando visibilidade após timeout:', document.visibilityState);
         if (document.visibilityState !== 'visible') {
+          console.log('[NotificationService] App em background - enviando notificação');
           this.sendLocalNotification(title, options);
         }
       }, 2000);
       
       // Também tentar via Service Worker message
       if (navigator.serviceWorker.controller) {
+        console.log('[NotificationService] Enviando mensagem para Service Worker');
         navigator.serviceWorker.controller.postMessage({
           type: 'SHOW_NOTIFICATION',
           title,
@@ -166,10 +187,15 @@ export class NotificationService {
           badge: options.badge,
           data: options.data
         });
+      } else {
+        console.warn('[NotificationService] Service Worker Controller não disponível');
       }
     } else {
+      console.log('[NotificationService] Enviando notificação diretamente');
       await this.sendLocalNotification(title, options);
     }
+    
+    console.log('[NotificationService] === FIM DA NOTIFICAÇÃO DE FASE ===');
   }
 
   // Configurar listener para mudanças de visibilidade da página

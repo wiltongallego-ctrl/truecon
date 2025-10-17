@@ -20,6 +20,16 @@ const Phase1Timeline: React.FC<Phase1TimelineProps> = ({ checkinDays, completedD
       );
     }
     
+    if (day.isMissed) {
+      return (
+        <div className="w-8 h-8 bg-gradient-to-r from-red-400 to-red-600 rounded-full flex items-center justify-center shadow-lg">
+          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </div>
+      );
+    }
+    
     if (day.isAvailable) {
       return (
         <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full flex items-center justify-center shadow-lg animate-pulse">
@@ -47,6 +57,7 @@ const Phase1Timeline: React.FC<Phase1TimelineProps> = ({ checkinDays, completedD
 
   const getDayStatus = (day: CheckinDay) => {
     if (day.isCompleted) return 'Concluído';
+    if (day.isMissed) return 'Perdido';
     if (day.isAvailable) return 'Disponível';
     if (day.isToday) return 'Hoje';
     return 'Bloqueado';
@@ -54,6 +65,7 @@ const Phase1Timeline: React.FC<Phase1TimelineProps> = ({ checkinDays, completedD
 
   const getDayStatusColor = (day: CheckinDay) => {
     if (day.isCompleted) return 'text-green-600';
+    if (day.isMissed) return 'text-red-600';
     if (day.isAvailable) return 'text-blue-600';
     if (day.isToday) return 'text-orange-600';
     return 'text-gray-500';
@@ -130,7 +142,7 @@ const Phase1Timeline: React.FC<Phase1TimelineProps> = ({ checkinDays, completedD
       {/* Legenda */}
       <div className="mt-6 p-4 bg-gray-50 rounded-lg">
         <h4 className="text-sm font-medium text-gray-700 mb-3">Legenda:</h4>
-        <div className="grid grid-cols-2 gap-3 text-xs">
+        <div className="flex flex-wrap gap-4 text-xs">
           <div className="flex items-center space-x-2">
             <div className="w-4 h-4 bg-gradient-to-r from-green-400 to-green-600 rounded-full flex items-center justify-center">
               <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -138,6 +150,14 @@ const Phase1Timeline: React.FC<Phase1TimelineProps> = ({ checkinDays, completedD
               </svg>
             </div>
             <span className="text-gray-600">Concluído</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 bg-gradient-to-r from-red-400 to-red-600 rounded-full flex items-center justify-center">
+              <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            <span className="text-gray-600">Perdido</span>
           </div>
           <div className="flex items-center space-x-2">
             <div className="w-4 h-4 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full flex items-center justify-center">

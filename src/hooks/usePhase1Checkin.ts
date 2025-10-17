@@ -9,6 +9,7 @@ export interface CheckinDay {
   isCompleted: boolean;
   isAvailable: boolean;
   isToday: boolean;
+  isMissed: boolean; // Novo campo para indicar dias perdidos
 }
 
 export interface Phase1CheckinData {
@@ -145,6 +146,9 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
 
   // Função para gerar os 7 dias do ciclo
   const generateCheckinDays = (checkins: Phase1CheckinData[], cycleStart: Date): CheckinDay[] => {
+    console.log('🔍 Debug generateCheckinDays - checkins recebidos:', checkins);
+    console.log('🔍 Debug generateCheckinDays - cycleStart:', cycleStart);
+    
     const days: CheckinDay[] = [];
     const today = new Date();
     
@@ -158,15 +162,28 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
       const isCompleted = checkins.some(c => c.day_number === i);
       const isToday = dayStr === todayStr;
       
+      console.log(`🔍 Debug Dia ${i}:`, {
+        dayStr,
+        isCompleted,
+        isToday,
+        checkinsForThisDay: checkins.filter(c => c.day_number === i)
+      });
+      
       // Disponível se: é hoje E já passou das 8h E não foi completado
       const isAvailable = isToday && today.getHours() >= CHECKIN_RESET_HOUR && !isCompleted;
+      
+      // Dia perdido se: a data já passou (comparando apenas datas) E não foi completado E não é hoje
+      const dayDateOnly = new Date(dayStr + 'T00:00:00');
+      const todayDateOnly = new Date(todayStr + 'T00:00:00');
+      const isMissed = dayDateOnly < todayDateOnly && !isCompleted && !isToday;
       
       days.push({
         day: i,
         date: dayDate,
         isCompleted,
         isAvailable,
-        isToday
+        isToday,
+        isMissed
       });
     }
     
@@ -179,6 +196,8 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
     const rawDays = Array.isArray(row.checkin_days) ? row.checkin_days : [];
     const startMs = cycleStart.getTime();
 
+    console.log('🔍 Debug normalizeAggregatedCheckins - rawDays:', rawDays);
+
     const normalized = rawDays.map((entry: any) => {
       const dateStr: string | undefined =
         typeof entry === 'string'
@@ -187,6 +206,9 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
       if (!dateStr) return null;
       const date = new Date(dateStr);
       const dayNumber = Math.max(1, Math.min(CYCLE_DAYS, Math.floor((date.getTime() - startMs) / (1000 * 60 * 60 * 24)) + 1));
+      
+      console.log('🔍 Debug normalizeAggregatedCheckins - entry:', entry, 'dateStr:', dateStr, 'dayNumber:', dayNumber);
+      
       return {
         user_id: userId,
         checkin_date: dateStr,
@@ -195,6 +217,7 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
       } as Phase1CheckinData;
     }).filter(Boolean) as Phase1CheckinData[];
 
+    console.log('🔍 Debug normalizeAggregatedCheckins - normalized:', normalized);
     return normalized;
   };
 
@@ -231,6 +254,7 @@ export const usePhase1Checkin = (): UsePhase1CheckinReturn => {
 
       if (rowError) throw rowError;
       console.log('🔍 Debug Hook - Dados encontrados:', existingRow);
+      console.log('🔍 Debug Hook - Array checkin_days:', existingRow?.checkin_days);
 
       let cycleStart: Date;
       let row: Phase1AggregatedRow | null = existingRow ?? null;

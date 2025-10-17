@@ -3,3 +3,6 @@ VITE_SUPABASE_URL=https://ucsxxyeitcylrwbucrly.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjc3h4eWVpdGN5bHJ3YnVjcmx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0NTMwMjQsImV4cCI6MjA3NjAyOTAyNH0.3dYRN5gerWBbTJS_4I6c04AYbDKxYTzY5VPNmVdSPVQ
 
 Nunca instala nada a nao ser que solicite.
+
+O sistema sempre executa na porta 8080 quando solicitado para execução.
+Se o sistema ja estiver em execução na porta 8080, ele nao sera executado novamente.

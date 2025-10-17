@@ -9,6 +9,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { notificationService } from "@/services/notificationService";
 import UpdateNotification from "@/components/UpdateNotification";
 import { updateStoredVersion } from "@/utils/versionUtils";
+import NotificationDebugger from "@/utils/debugNotifications";
 import Auth from "./pages/Auth";
 import Home from "./pages/Home";
 import Ranking from "./pages/Ranking";
@@ -25,6 +26,17 @@ const App = () => {
   useEffect(() => {
     // Atualizar versão armazenada na inicialização
     updateStoredVersion();
+    
+    // Inicializar debugger de notificações (apenas em desenvolvimento)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔧 Modo de desenvolvimento - Debugger de notificações disponível');
+      console.log('💡 Use NotificationDebugger.runAllTests() no console para diagnóstico completo');
+      
+      // Executar diagnóstico básico
+      setTimeout(() => {
+        NotificationDebugger.checkNotificationStatus();
+      }, 2000);
+    }
     
     // Inicializar serviço de notificações
     const initializeNotifications = async () => {
