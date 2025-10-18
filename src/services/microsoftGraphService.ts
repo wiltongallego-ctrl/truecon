@@ -217,4 +217,100 @@ export class MicrosoftGraphService {
     console.log('✅ Foto obtida do Microsoft Graph, iniciando salvamento no Supabase...');
     return await this.saveUserPhotoToSupabase(photoBase64, userId);
   }
+
+  /**
+   * Buscar foto do usuário usando Client Credentials (para usuários sem login)
+   */
+  static async getUserPhotoWithClientCredentials(userEmail: string): Promise<string | null> {
+    try {
+      console.log('🔐 [MicrosoftGraphService] Buscando foto com Client Credentials para:', userEmail);
+      
+      // Configurações do Azure AD - APENAS variáveis de ambiente
+      const tenantId = import.meta.env.VITE_AZURE_TENANT_ID;
+      const clientId = import.meta.env.VITE_AZURE_CLIENT_ID;
+      const clientSecret = import.meta.env.VITE_AZURE_CLIENT_SECRET;
+      
+      if (!tenantId || !clientId || !clientSecret) {
+        console.error('❌ Variáveis de ambiente do Azure não configuradas');
+        throw new Error('Azure credentials não configurados. Configure VITE_AZURE_TENANT_ID, VITE_AZURE_CLIENT_ID e VITE_AZURE_CLIENT_SECRET nas variáveis de ambiente.');
+      }
+      
+      // Obter token de acesso usando Client Credentials
+      console.log('🔑 Obtendo token de acesso do Azure AD...');
+      const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+      
+      const tokenResponse = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          scope: 'https://graph.microsoft.com/.default',
+          grant_type: 'client_credentials'
+        })
+      });
+
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        console.error('❌ Erro ao obter token:', tokenResponse.status, errorText);
+        return null;
+      }
+
+      const tokenData = await tokenResponse.json();
+      const accessToken = tokenData.access_token;
+      
+      console.log('✅ Token obtido com sucesso');
+      
+      // Buscar foto do usuário
+      console.log('📸 Buscando foto do usuário...');
+      const photoUrl = `${this.GRAPH_API_BASE}/users/${userEmail}/photo/$value`;
+      
+      const photoResponse = await fetch(photoUrl, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'image/jpeg'
+        }
+      });
+
+      if (!photoResponse.ok) {
+        if (photoResponse.status === 404) {
+          console.log('📸 Foto não encontrada para o usuário:', userEmail);
+          return null;
+        }
+        console.error('❌ Erro ao buscar foto:', photoResponse.status, photoResponse.statusText);
+        return null;
+      }
+
+      const blob = await photoResponse.blob();
+      const base64 = await this.blobToBase64(blob);
+      
+      console.log('✅ Foto obtida com sucesso via Client Credentials');
+      return base64;
+      
+    } catch (error) {
+      console.error('❌ Erro ao obter foto com Client Credentials:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Processo completo: buscar foto usando Client Credentials e salvar no Supabase
+   */
+  static async fetchAndSaveUserPhotoWithClientCredentials(userEmail: string, userId: string): Promise<string | null> {
+    console.log('🚀 Iniciando processo completo de busca e salvamento da foto com Client Credentials...');
+    console.log('👤 User ID:', userId);
+    console.log('📧 Email:', userEmail);
+    
+    const photoBase64 = await this.getUserPhotoWithClientCredentials(userEmail);
+    
+    if (!photoBase64) {
+      console.log('❌ Não foi possível obter foto do Microsoft Graph via Client Credentials');
+      return null;
+    }
+    
+    console.log('✅ Foto obtida do Microsoft Graph, iniciando salvamento no Supabase...');
+    return await this.saveUserPhotoToSupabase(photoBase64, userId);
+  }
 }
